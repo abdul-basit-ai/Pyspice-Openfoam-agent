@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Env / secrets
+.env
+*.key
+
+# Simulation artifacts (per-run outputs, potentially GBs)
+runs/*
+!runs/.gitkeep
+
+# OpenFOAM case dirs generated anywhere
+case_*/
+postProcessing/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+build_log.txt
+docker/phase0_debug.log

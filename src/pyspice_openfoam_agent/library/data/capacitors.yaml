@@ -1,0 +1,143 @@
+category: capacitors
+# Curated from public manufacturer datasheets (Tier-1 static library).
+# Units: F, Ohm, V, A.
+# NOTE: ESR at 100 kHz (typical datasheet test frequency for electrolytic/
+# polymer); MLCC ESR is dominant-loss ESR at f_sw, usually tens of mOhm.
+parts:
+  # --- MLCC, 25V/50V X7R (buck output; DC-bias derating is a Phase 2+ concern) ---
+  - part_number: GRM31CR61E476ME15
+    C: 47e-6
+    tol_percent: 20.0
+    ESR: 0.003
+    ESL: 0.5e-9
+    V_rated: 25.0
+    Irms_max: 4.0
+    package: 1206
+    datasheet:
+      url: "https://www.murata.com/en-global/products/productdetail/GRM31CR61E476ME15"
+      page: 1
+      note: "Murata 47uF 25V X5R 1206; ESR ~3 mOhm at 100kHz; DC-bias derating NOT in C field"
+  - part_number: GRM32DR71C106KA01
+    C: 10e-6
+    tol_percent: 10.0
+    ESR: 0.004
+    ESL: 0.6e-9
+    V_rated: 16.0
+    Irms_max: 3.0
+    package: 1210
+    datasheet:
+      url: "https://www.murata.com/en-global/products/productdetail/GRM32DR71C106KA01"
+      page: 1
+      note: "Murata 10uF 16V X7R 1210"
+  - part_number: C3225X7R1E476K
+    C: 47e-6
+    tol_percent: 10.0
+    ESR: 0.0035
+    ESL: 0.6e-9
+    V_rated: 25.0
+    Irms_max: 4.5
+    package: 1210
+    datasheet:
+      url: "https://product.tdk.com/en/search/capacitor/mlcc/product/C3225X7R1E476K"
+      page: 1
+      note: "TDK 47uF 25V X7R 1210"
+  - part_number: C2012X7R1A106K
+    C: 10e-6
+    tol_percent: 10.0
+    ESR: 0.005
+    ESL: 0.5e-9
+    V_rated: 10.0
+    Irms_max: 2.5
+    package: 0805
+    datasheet:
+      url: "https://product.tdk.com/en/search/capacitor/mlcc/product/C2012X7R1A106K"
+      page: 1
+      note: "TDK 10uF 10V X7R 0805"
+
+  # --- Polymer electrolytic (high-C, moderate ESR; good bulk output stage) ---
+  - part_number: EEF-CD1D101R
+    C: 100e-6
+    tol_percent: 20.0
+    ESR: 0.019
+    ESL: 2.0e-9
+    V_rated: 20.0
+    Irms_max: 3.5
+    package: SMD-D8
+    datasheet:
+      url: "https://industrial.panasonic.com/ww/products/pt/polymer-capacitors/models/EEFCD1D101R"
+      page: 1
+      note: "Panasonic SP-Cap 100uF 20V; ESR 19 mOhm at 100kHz"
+  - part_number: EEF-CD1E221P
+    C: 220e-6
+    tol_percent: 20.0
+    ESR: 0.015
+    ESL: 2.5e-9
+    V_rated: 25.0
+    Irms_max: 4.8
+    package: SMD-D10
+    datasheet:
+      url: "https://industrial.panasonic.com/ww/products/pt/polymer-capacitors/models/EEFCD1E221P"
+      page: 1
+      note: "Panasonic SP-Cap 220uF 25V"
+  - part_number: 5TPD330M
+    C: 330e-6
+    tol_percent: 20.0
+    ESR: 0.012
+    ESL: 3.0e-9
+    V_rated: 8.0
+    Irms_max: 6.1
+    package: D8
+    datasheet:
+      url: "https://www.sanyo.com/oscon/pdf/5TPD330M.pdf"
+      page: 1
+      note: "Sanyo/Panasonic OS-CON 330uF 8V; ESR 12 mOhm at 100kHz"
+  - part_number: 10TPB220M
+    C: 220e-6
+    tol_percent: 20.0
+    ESR: 0.010
+    ESL: 2.5e-9
+    V_rated: 10.0
+    Irms_max: 5.5
+    package: D10
+    datasheet:
+      url: "https://www.sanyo.com/oscon/pdf/10TPB220M.pdf"
+      page: 1
+      note: "Sanyo OS-CON 220uF 10V"
+
+  # --- Ceramic arrays / high-voltage MLCC (input stage 48V) ---
+  - part_number: GRM32ER71H106KA12
+    C: 10e-6
+    tol_percent: 10.0
+    ESR: 0.0045
+    ESL: 0.6e-9
+    V_rated: 50.0
+    Irms_max: 3.5
+    package: 1210
+    datasheet:
+      url: "https://www.murata.com/en-global/products/productdetail/GRM32ER71H106KA12"
+      page: 1
+      note: "Murata 10uF 50V X7R 1210"
+  - part_number: C5750X7R1H106K
+    C: 10e-6
+    tol_percent: 10.0
+    ESR: 0.005
+    ESL: 1.0e-9
+    V_rated: 50.0
+    Irms_max: 3.0
+    package: 2220
+    datasheet:
+      url: "https://product.tdk.com/en/search/capacitor/mlcc/product/C5750X7R1H106K"
+      page: 1
+      note: "TDK 10uF 50V X7R 2220"
+  - part_number: EEFKD1V101P
+    C: 100e-6
+    tol_percent: 20.0
+    ESR: 0.022
+    ESL: 2.0e-9
+    V_rated: 35.0
+    Irms_max: 3.2
+    package: SMD-D8
+    datasheet:
+      url: "https://industrial.panasonic.com/ww/products/pt/polymer-capacitors/models/EEFKD1V101P"
+      page: 1
+      note: "Panasonic SP-Cap 100uF 35V"

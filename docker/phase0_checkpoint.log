@@ -1,0 +1,15 @@
+=== ngspice RC divider ===
+v(out) = 2.500000e+00
+=== OpenFOAM cavity ===
+blockMesh exit=0
+checkMesh exit=0
+Mesh OK.
+icoFoam exit=0
+DICPCG:  Solving for p, Initial residual = 9.59103e-07, Final residual = 9.59103e-07, No Iterations 0
+time step continuity errors : sum local = 9.66354e-09, global = 1.13175e-18, cumulative = 1.21735e-17
+ExecutionTime = 0.07 s  ClockTime = 0 s
+
+End
+
+=== ALL CHECKS PASSED ===
+SCRIPT_EXIT=0

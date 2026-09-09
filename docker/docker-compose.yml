@@ -1,0 +1,16 @@
+services:
+  agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: pyspice-openfoam-agent
+    volumes:
+      - ..:/workspace
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      - PYTHONUNBUFFERED=1
