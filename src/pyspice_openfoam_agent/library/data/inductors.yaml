@@ -135,6 +135,45 @@ parts:
       url: "https://www.bourns.com/docs/product-datasheets/SRP1038A.pdf"
       page: 1
       note: "Bourns SRP1038A-2R2M, 2.2 uH 20%"
+  - part_number: XAL1010-102ME
+    L: 10.0e-6
+    tol_percent: 20.0
+    DCR: 0.0261
+    ESR: 0.0
+    Isat: 14.6
+    Irms: 9.5
+    f_self_res: 15.0e6
+    package: "1010"
+    datasheet:
+      url: "https://www.coilcraft.com/en-us/pcms/xal/xal-1010/"
+      page: 1
+      note: "Coilcraft XAL1010-102ME, 10 uH 20%"
+  - part_number: XAL5030-472ME
+    L: 4.7e-6
+    tol_percent: 20.0
+    DCR: 0.0237
+    ESR: 0.0
+    Isat: 12.0
+    Irms: 7.0
+    f_self_res: 28.0e6
+    package: "5030"
+    datasheet:
+      url: "https://www.coilcraft.com/en-us/pcms/xal/xal-5030/"
+      page: 1
+      note: "Coilcraft XAL5030-472ME, 4.7 uH 20%"
+  - part_number: XAL1010-122ME
+    L: 12.0e-6
+    tol_percent: 20.0
+    DCR: 0.0304
+    ESR: 0.0
+    Isat: 12.4
+    Irms: 8.0
+    f_self_res: 13.5e6
+    package: "1010"
+    datasheet:
+      url: "https://www.coilcraft.com/en-us/pcms/xal/xal-1010/"
+      page: 1
+      note: "Coilcraft XAL1010-122ME, 12 uH 20%"
   - part_number: "74437346010"
     L: 1.0e-6
     tol_percent: 20.0
