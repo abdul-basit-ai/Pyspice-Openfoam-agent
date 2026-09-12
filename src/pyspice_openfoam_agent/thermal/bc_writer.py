@@ -88,10 +88,16 @@ def _fluid_entry(field: str, patch: str, role: PatchRole, v_in, ambient_k: float
         if role.outlet:
             return _bc(patch, f"type fixedValue;\n        value uniform {P_REFERENCE_PA:f};")
         return _bc(patch, "type zeroGradient;")
-    if field == "p_rgh":  # p_rgh is a GAUGE relative to p_ref; 0 at outlet is correct
+    if field == "p_rgh":
+        # Buoyant compressible p_rgh: walls/inlet/interface use fixedFluxPressure
+        # (matches internal reference, couples to velocity). The OUTLET must
+        # use fixedValue $internalField (NOT fixedFluxPressure — that makes the
+        # pressure equation singular and NaNs the first momentum solve; audit
+        # finding confirmed against the v2406 cpuCabinet tutorial which uses
+        # fixedValue at outlets).
         if role.outlet:
-            return _bc(patch, "type fixedValue;\n        value uniform 0;")
-        return _bc(patch, "type zeroGradient;")
+            return _bc(patch, "type fixedValue;\n        value $internalField;")
+        return _bc(patch, "type fixedFluxPressure;\n        value $internalField;")
     if field in ("k", "epsilon"):
         if role.inlet:
             # nominal turbulence intensity 5%, k ~ 1.5*(I*U)^2 with U~1 m/s

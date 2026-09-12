@@ -243,6 +243,7 @@ def build_case(
     )
     _rewrite_region_properties(out)
     _rework_regions(out)
+    _fix_tutorial_dict_quirks(out)
     _write_laminar_turbulence(out)
     _write_heat_sources(out, plan, power_watts)
     _write_allrun_pre(out)
@@ -320,3 +321,21 @@ def _write_laminar_turbulence(case: Path) -> None:
     (case / "constant" / "air" / "turbulenceProperties").write_text(
         _LAMINAR_TURBULENCE, encoding="utf-8"
     )
+
+
+def _fix_tutorial_dict_quirks(case: Path) -> None:
+    """Fix known v2406 tutorial dict bugs."""
+    fs = case / "system" / "air" / "fvSolution"
+    if not fs.exists():
+        return
+    t = fs.read_text()
+    # fix missing semicolon on 'solver          PCG' (no semicolon)
+    t = t.replace("solver          PCG\n", "solver          PCG;\n")
+    # add pRefCell/pRefValue inside SIMPLE block if not present
+    if "pRefCell" not in t and "SIMPLE" in t:
+        t = t.replace(
+            "momentumPredictor true;",
+            "momentumPredictor true;\n    pRefCell 0;\n    pRefValue 101325;",
+        )
+    fs.write_text(t)
+
