@@ -18,6 +18,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ngspice \
     libngspice0 \
     libngspice0-dev \
+    libgl1 \
+    libglx-mesa0 \
+    libosmesa6 \
+    libegl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Symlink so PySpice reliably discovers libngspice

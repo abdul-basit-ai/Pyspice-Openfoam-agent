@@ -97,7 +97,7 @@ class AgentState(TypedDict):
     error: str | None
 
 
-def make_graph(config: AgentConfig, ctx: ToolContext, client=None, mock_responses: list[dict] | None = None):
+def make_graph(config: AgentConfig, ctx: ToolContext, client=None, mock_responses: list[dict] | None = None, run_state=None):
     """Build the agent graph. `client` and `mock_responses` are for tests:
     mock mode replays the recorded responses instead of calling Gemini."""
     from langgraph.graph import END, StateGraph
@@ -132,6 +132,9 @@ def make_graph(config: AgentConfig, ctx: ToolContext, client=None, mock_response
             result: ToolResult = dispatch(ctx, name, args)
             transcript.append({"role": "tool", "tool": name, "args": args,
                                "ok": result.ok, "result": result.payload})
+            if run_state is not None:
+                run_state.log_tool(name, result.ok, result.payload,
+                                   ctx.artifacts, state["step"] + 1)
         return {"transcript": transcript, "tool_calls": [], "step": state["step"] + 1}
 
     def finalize(state: AgentState) -> dict:
@@ -198,7 +201,11 @@ def run_agent(
     config = AgentConfig(run_dir=Path(run_dir), model=model, max_steps=max_steps)
     Path(run_dir).mkdir(parents=True, exist_ok=True)
     ctx = ToolContext(run_dir=Path(run_dir), library=load_library_or_raise())
-    graph = make_graph(config, ctx, mock_responses=mock_responses)
+    from pyspice_openfoam_agent.ui.run_state import RunState
+
+    rs = RunState(run_dir)
+    rs.init(task_spec, max_steps)
+    graph = make_graph(config, ctx, mock_responses=mock_responses, run_state=rs)
     state = {
         "task": task_spec,
         "transcript": [],
@@ -209,7 +216,9 @@ def run_agent(
         "error": None,
     }
     result = graph.invoke(state, config={"recursion_limit": max_steps * 2 + 5})
-    return result.get("final") or {"error": result.get("error", "no final state")}
+    final = result.get("final") or {"error": result.get("error", "no final state")}
+    rs.finish(final, error=result.get("error"))
+    return final
 
 
 def load_library_or_raise() -> Library:

@@ -225,6 +225,26 @@ def tool_run_spice(ctx: ToolContext, max_cycles: float = 800) -> dict:
         "converged": run.steady_state.converged, "cycles": run.n_cycles_run,
         "ripple_V": ripple, "efficiency": eff, "losses_W": lb.losses.total if lb else None,
     }
+    # visualizations for the UI (best-effort; never fail the tool on render)
+    try:
+        from pyspice_openfoam_agent.ui.visualize import draw_schematic, plot_waveforms
+
+        wf = plot_waveforms(run.result, Path(ctx.run_dir) / "waveforms.png",
+                            vout_target=ctx.spec.Vout)
+        ctx.artifacts["waveforms_png"] = str(wf)
+        if ctx.sizing and ctx.selected:
+            sch = draw_schematic(
+                topology=ctx.sizing.topology, mosfet_pn=ctx.selected.mosfet.part_number,
+                inductor_pn=ctx.selected.inductor.part_number,
+                inductor_uh=ctx.selected.inductor.L * 1e6,
+                capacitor_pn=ctx.selected.capacitor.part_number,
+                capacitor_uf=ctx.selected.capacitor.C * 1e6,
+                out_png=Path(ctx.run_dir) / "schematic.png",
+                vin=ctx.spec.Vin, vout=ctx.spec.Vout,
+            )
+            ctx.artifacts["schematic_png"] = str(sch)
+    except Exception:
+        pass
     return {
         "converged": run.steady_state.converged,
         "cycles_to_steady": run.n_cycles_run,
@@ -282,6 +302,14 @@ def tool_run_thermal(ctx: ToolContext, v_in_m_s: float | None = None) -> dict:
         "v_in_m_s": v_in, "tj_per_device_C": tj_per_device_C(ctx, result),
         "converged": result.converged,
     }
+    # thermal PNG for the UI (best-effort; needs OSMesa in the image)
+    try:
+        from pyspice_openfoam_agent.thermal.extraction import render_temperature_png
+
+        png = render_temperature_png(cp.root, Path(ctx.run_dir) / "tj_snapshot.png")
+        ctx.artifacts["tj_png"] = str(png)
+    except Exception:
+        pass
     return {
         "converged": result.converged,
         "tj_per_device_C": tj_c,
