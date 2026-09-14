@@ -96,3 +96,28 @@ def test_waveform_plot_renders(tmp_path) -> None:
     res = TransientResult(vectors={"time": t, "out": v})
     out = plot_waveforms(res, tmp_path / "wf.png", vout_target=5.0)
     assert out.exists() and out.stat().st_size > 1000
+
+
+def test_run_state_carries_control_loop_artifacts(tmp_path) -> None:
+    """Phase 6 verdict + electro-thermal Tj ride through the run-state bridge."""
+    rs = RunState(tmp_path / "run_cl")
+    rs.init({"Vin": 12}, 6)
+    rs.log_tool("analyze_control_loop", True,
+                {"passed": True, "phase_margin_deg": 58.6, "gain_margin_db": 40.0,
+                 "crossover_kHz": 50.0, "reasons": ["PM within target"]},
+                {"control_loop": {"passed": True, "phase_margin_deg": 58.6,
+                                  "gain_margin_db": 40.0, "crossover_hz": 50000.0}},
+                step=3)
+    rs.log_tool("electro_thermal_converge", True,
+                {"converged": True, "final_tj_C": 42.3, "iterations": 3},
+                {"control_loop": {"passed": True, "phase_margin_deg": 58.6,
+                                  "gain_margin_db": 40.0, "crossover_hz": 50000.0},
+                 "electro_thermal": {"converged": True, "final_tj_C": 42.3,
+                                     "iterations": 3}},
+                step=4)
+    s = rs.read()
+    assert s["artifacts"]["control_loop"]["passed"] is True
+    assert s["artifacts"]["control_loop"]["phase_margin_deg"] == 58.6
+    assert s["artifacts"]["electro_thermal"]["final_tj_C"] == 42.3
+    assert s["history"][0]["tool"] == "analyze_control_loop"
+    assert s["history"][1]["tool"] == "electro_thermal_converge"

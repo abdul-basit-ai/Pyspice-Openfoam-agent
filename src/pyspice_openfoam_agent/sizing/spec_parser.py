@@ -32,16 +32,43 @@ class SpecParseResult:
     contradictions: list[str]
 
 
-_VOLT = re.compile(r"(?:vin|input(?:\s+voltage)?)\s*[=:]?\s*(\d+(?:\.\d+)?)\s*(?:to|–|—|-)\s*(\d+(?:\.\d+)?)?\s*v", re.I)
-_VOUT = re.compile(r"(?:vout|output(?:\s+voltage)?)\s*[=:]?\s*(\d+(?:\.\d+)?)\s*v", re.I)
-_IOUT = re.compile(r"(\d+(?:\.\d+)?)\s*a\b(?:\s+(?:output|load))?", re.I)
-_FSW = re.compile(r"(\d+(?:\.\d+)?)\s*khz", re.I)
-_RIPPLE_MV = re.compile(r"ripple[^.\d]*(\d+(?:\.\d+)?)\s*mv", re.I)
-_EFF = re.compile(r"efficiency[^.\d]*(\d+(?:\.\d+)?)\s*%", re.I)
-_TJ = re.compile(r"tj[^.\d]*(\d+(?:\.\d+)?)\s*°?c", re.I)
-_OCP = re.compile(r"ocp[^.\d]*(\d+(?:\.\d+)?)\s*a", re.I)
-_OTP = re.compile(r"otp[^.\d]*(\d+(?:\.\d+)?)\s*°?c", re.I)
-_UVLO = re.compile(r"uvlo[^.\d]*(\d+(?:\.\d+)?)\s*v", re.I)
+# Voltages. A real spec says "12 V to 5 V" with NO "vin"/"vout" label, or
+# "input 12-36 V, output 5 V". Handle both: labeled values are most explicit
+# and win; otherwise fall back to the "A V to B V" / "A–B V" input-range form.
+_LABELED = {
+    "vin": re.compile(r"(?:vin|input(?:\s+voltage)?)\s*[=:]?\s*(\d+(?:\.\d+)?)", re.I),
+    "vout": re.compile(r"(?:vout|output(?:\s+voltage)?)\s*[=:]?\s*(\d+(?:\.\d+)?)", re.I),
+}
+# Also allow the number to come BEFORE the label ("12 V input", "5 V output")
+_LABELED_NUM_FIRST = {
+    "vin": re.compile(r"(\d+(?:\.\d+)?)\s*V\s*(?:input|vin)\b", re.I),
+    "vout": re.compile(r"(\d+(?:\.\d+)?)\s*V\s*(?:output|vout)\b", re.I),
+}
+# "12 V to 5 V" -> groups (12, 5). Also "12 V – 5 V", "12-5 V". The first is
+# the input (range start), the second the output, when neither is labeled.
+_TO_PAIR = re.compile(
+    r"(\d+(?:\.\d+)?)\s*V\s*(?:to|–|—|->|--|--|-)\s*(\d+(?:\.\d+)?)\s*V", re.I)
+
+_IOUT = re.compile(r"(\d+(?:\.\d+)?)\s*A", re.I)
+_FSW = re.compile(r"(\d+(?:\.\d+)?)\s*kHz", re.I)
+_RIPPLE_MV = re.compile(r"ripple[^.\d]{0,12}(\d+(?:\.\d+)?)\s*mV", re.I)
+_EFF = re.compile(r"efficien[^.\d]{0,12}(\d+(?:\.\d+)?)\s*%", re.I)
+_TJ = re.compile(r"tj[^.\d]{0,12}(\d+(?:\.\d+)?)\s*°?C", re.I)
+_OCP = re.compile(r"ocp[^.\d]{0,12}(\d+(?:\.\d+)?)\s*A", re.I)
+_OTP = re.compile(r"otp[^.\d]{0,12}(\d+(?:\.\d+)?)\s*°?C", re.I)
+_UVLO = re.compile(r"uvlo[^.\d]{0,12}(\d+(?:\.\d+)?)\s*V", re.I)
+
+
+def _first_num(pat: re.Pattern, text: str, fallback: re.Pattern | None = None,
+               fallback_consumed: dict | None = None) -> float | None:
+    m = pat.search(text)
+    if m:
+        return float(m.group(1))
+    if fallback is not None:
+        m2 = fallback.search(text)
+        if m2:
+            return float(m2.group(1))
+    return None
 
 
 def parse_spec(text: str) -> SpecParseResult:
@@ -52,55 +79,62 @@ def parse_spec(text: str) -> SpecParseResult:
     contradictions: list[str] = []
     missing_safety: list[str] = []
 
-    vin_range = _VOLT.search(text)
-    if vin_range:
-        vin = float(vin_range.group(1))
-        vin_max = float(vin_range.group(2)) if vin_range.group(2) else vin
-    else:
+    # --- voltages: labeled wins; else the "<V> to <V>" pair (in -> out) ---
+    vin = _first_num(_LABELED["vin"], text, fallback=_LABELED_NUM_FIRST["vin"])
+    vout = _first_num(_LABELED["vout"], text, fallback=_LABELED_NUM_FIRST["vout"])
+    pair = _TO_PAIR.search(text)
+    if pair:
+        p_in, p_out = float(pair.group(1)), float(pair.group(2))
+        # If only a labeled output is "out" and the pair gives a range whose
+        # low end (or first value) is the input, resolve sensibly.
+        if vin is None:
+            vin = p_in
+        if vout is None and vin is not None:
+            # "12 V to 5 V": first is input, second is output.
+            vout = p_out
+
+    if vin is None:
         raise SpecParseError("Vin not found in specification — it is required")
-
-    vout_m = _VOUT.search(text)
-    if not vout_m:
+    if vout is None:
         raise SpecParseError("Vout not found in specification — it is required")
-    vout = float(vout_m.group(1))
 
-    iout_m = _IOUT.search(text)
-    if not iout_m:
+    iout = _first_num(_IOUT, text)
+    if iout is None:
         raise SpecParseError("Iout not found in specification — it is required")
-    iout = float(iout_m.group(1))
+    if iout <= 0 or vin <= 0 or vout <= 0:
+        raise SpecParseError("Vin/Vout/Iout must each be positive")
 
     fsw_m = _FSW.search(text)
     if fsw_m:
         fsw_khz = float(fsw_m.group(1))
     else:
-        fsw_khz = 500.0  # documented default: 500 kHz, our reference band
-    if not fsw_m:
-        pass  # recorded as assumption below
+        fsw_khz = 500.0  # documented default
 
     rip_m = _RIPPLE_MV.search(text)
-    if rip_m:
-        ripple_v = float(rip_m.group(1)) / 1000.0
-    else:
-        # provisional recommendation: 1% of Vout (goals' example question)
-        ripple_v = 0.01 * vout
+    ripple_v = float(rip_m.group(1)) / 1000.0 if rip_m else None
+    if ripple_v is None:
+        ripple_v = 0.01 * vout  # provisional: 1% of Vout
 
-    eff_m = _EFF.search(text)
-    efficiency_target = float(eff_m.group(1)) / 100.0 if eff_m else None
+    eff_pct = _first_num(_EFF, text)
+    efficiency_target = eff_pct / 100.0 if eff_pct is not None else None
 
-    tj_m = _TJ.search(text)
-    tj_max = float(tj_m.group(1)) if tj_m else 150.0
+    tj = _first_num(_TJ, text)
+    tj_max = tj if tj is not None else 150.0
 
-    ocp_m = _OCP.search(text)
-    otp_m = _OTP.search(text)
-    uvlo_m = _UVLO.search(text)
+    ocp = _first_num(_OCP, text)
+    otp = _first_num(_OTP, text)
+    uvlo = _first_num(_UVLO, text)
 
-    # contradiction checks (P2's "detect contradictory constraints")
-    if vout >= vin and "boost" not in text.lower() and "step-up" not in text.lower():
-        contradictions.append(f"Vout {vout} >= Vin {vin} with no boost/step-up language")
-    if efficiency_target and efficiency_target >= 1.0:
-        contradictions.append(f"efficiency target {efficiency_target * 100}% >= 100% is impossible")
+    # --- contradiction checks (P2's "detect contradictory constraints") ---
+    if efficiency_target is not None and efficiency_target >= 1.0:
+        contradictions.append(
+            f"efficiency target {efficiency_target * 100:.0f}% >= 100% is impossible")
     if ripple_v >= vout:
-        contradictions.append(f"ripple {ripple_v * 1e3:.0f} mV >= Vout {vout} V is nonsensical")
+        contradictions.append(
+            f"ripple {ripple_v * 1e3:.1f} mV >= Vout {vout} V is nonsensical")
+    if pair and vin == vout and not (vin != vout):
+        contradictions.append("input and output voltage cannot be equal "
+                              "(that is not a converter step)")
     if contradictions:
         raise SpecParseError("; ".join(contradictions))
 
@@ -109,29 +143,28 @@ def parse_spec(text: str) -> SpecParseResult:
         ripple_v=ripple_v,
         efficiency_target=efficiency_target,
         tj_max_c=tj_max,
-        ocp_a=float(ocp_m.group(1)) if ocp_m else None,
-        otp_c=float(otp_m.group(1)) if otp_m else None,
-        uvlo_v=float(uvlo_m.group(1)) if uvlo_m else None,
+        ocp_a=ocp, otp_c=otp, uvlo_v=uvlo,
     )
 
     # --- question policy ---
     assumptions: list[str] = []
     missing_material: list[str] = []
-    if not rip_m:
-        assumptions.append(f"ripple not specified: assumed 1% of Vout = {ripple_v * 1e3:.0f} mV — confirm")
+    if rip_m is None:
+        assumptions.append(
+            f"ripple not specified: assumed 1% of Vout = {ripple_v * 1e3:.1f} mV — confirm")
         missing_material.append("ripple")
-    if not eff_m:
+    if eff_pct is None:
         assumptions.append("efficiency target not specified: no target set (report achieved)")
         missing_material.append("efficiency target")
-    if not fsw_m:
+    if fsw_m is None:
         assumptions.append("f_sw not specified: assumed 500 kHz — confirm")
         missing_material.append("f_sw")
     # safety-relevant: MUST ask (goals: do not assume values)
-    if not ocp_m:
+    if ocp is None:
         missing_safety.append("OCP threshold")
-    if not otp_m:
+    if otp is None:
         missing_safety.append("OTP shutdown temperature")
-    if not uvlo_m:
+    if uvlo is None:
         missing_safety.append("UVLO threshold")
     req.unresolved_safety_items = list(missing_safety)
 

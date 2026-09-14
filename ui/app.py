@@ -183,6 +183,36 @@ def tab_results(state: dict | None, artifacts: dict) -> None:
         c2.metric("ripple", _fmt_metric(rip, " mV", 1000) if rip is not None else "N/A")
         loss = spice.get("losses_W")
         c3.metric("total loss", _fmt_metric(loss, " W") if loss is not None else "N/A")
+    # Phase 6 control-loop verdict (goals: margins computed, not LLM-judged)
+    cl = artifacts.get("control_loop")
+    if cl:
+        st.subheader("Control loop (Phase 6)")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("phase margin",
+                  _fmt_metric(cl.get("phase_margin_deg"), "°") if cl.get("phase_margin_deg") is not None else "N/A")
+        gm = cl.get("gain_margin_db")
+        c2.metric("gain margin", "∞" if gm and gm >= 40 else _fmt_metric(gm, " dB"))
+        c3.metric("crossover", _fmt_metric(cl.get("crossover_kHz"), " kHz") if cl.get("crossover_kHz") is not None else "N/A")
+        if cl.get("passed"):
+            st.success(f"PASS — {cl.get('compensator', '?')} compensator")
+        else:
+            st.error(f"FAIL — {cl.get('compensator', '?')} compensator")
+        if cl.get("reasons"):
+            st.caption(" · ".join(cl["reasons"]))
+    # electro-thermal convergence (goals gap: self-consistent Tj)
+    et = artifacts.get("electro_thermal")
+    if et:
+        st.subheader("Electro-thermal (self-consistent Tj)")
+        c1, c2 = st.columns(2)
+        c1.metric("Tj (converged)", f"{et.get('final_tj_C', 0):.1f} °C" if et.get("final_tj_C") is not None else "N/A")
+        c2.metric("iterations", et.get("iterations", "N/A"))
+        if et.get("converged"):
+            st.success("converged (|ΔTj| < 2 °C)")
+        else:
+            st.error("convergence FAILED — validation failure, investigate")
+        if et.get("trace"):
+            with st.expander("Fixed-point trace", expanded=False):
+                st.code("\n".join(et["trace"]), language="text")
     thermal = artifacts.get("thermal")
     if thermal:
         st.subheader("Thermal")

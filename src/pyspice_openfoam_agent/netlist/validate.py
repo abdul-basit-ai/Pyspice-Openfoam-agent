@@ -49,6 +49,12 @@ def validate_netlist(cir_path: str | Path) -> ConnectivityReport:
             etype = name[0].lower()
             if etype in ("v", "i"):
                 nodes = tokens[1:3]
+            elif etype in ("s", "w", "m"):
+                # switch / mosfet: 4 nodes (n+, n-, c+, c-); the model name
+                # is a trailing token, not a node. Dropping the control node
+                # here borks the connectivity graph (P5 bug: gate nodes
+                # falsely flagged floating).
+                nodes = tokens[1:5]
             elif etype == "x":  # subcircuit: node count unknown, skip pins
                 continue
             else:
@@ -60,13 +66,12 @@ def validate_netlist(cir_path: str | Path) -> ConnectivityReport:
                     continue
                 node_degree[n] = node_degree.get(n, 0) + 1
 
-    # duplicates
-    seen: dict[str, int] = {}
-    dups = []
-    for n in device_names:
-        base = n.lstrip("vicrldsx VICRLDSX")
-        seen[base] = seen.get(base, 0) + 1
-    dups = [n for n, c in seen.items() if c > 1 and n]
+    # duplicates (raw element names — "Lout" vs "Cout" are distinct, so never
+    # strip the leading element letter before comparing, as that would make
+    # Lout/Cout collide on "out")
+    from collections import Counter
+
+    dups = sorted(n for n, c in Counter(device_names).items() if c > 1)
 
     # floating: non-ground nodes with degree 1
     floating = sorted(

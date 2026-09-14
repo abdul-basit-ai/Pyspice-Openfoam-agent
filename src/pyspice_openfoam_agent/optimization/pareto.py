@@ -187,10 +187,21 @@ def run_pareto(
     algorithm = NSGA2(pop_size=pop_size, seed=seed)
     res = minimize(ConverterProblem(), algorithm, ("n_gen", n_gen), seed=seed, verbose=False)
 
+    # pymoo's res.X/res.F hold the full final population. The Pareto front is
+    # the subset that is non-dominated over every recorded objective — filter
+    # it explicitly so run_pareto returns only the front (P13 contract).
+    from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
+
+    nds = NonDominatedSorting()
+    front_idx = nds.do(res.F, only_non_dominated_front=True)
+    front_idx = set(int(i) for i in front_idx)
+
     # collect the front
     candidates: list[Candidate] = []
     fets_by_idx = {i: m for i, m in enumerate(fets)}
-    for x, f in zip(res.X, res.F):
+    for i, (x, f) in enumerate(zip(res.X, res.F)):
+        if int(i) not in front_idx:
+            continue
         mi = int(x[3])
         mosfet = fets_by_idx[min(mi, len(fets) - 1)]
         fsw_khz = float(x[0])
@@ -198,39 +209,15 @@ def run_pareto(
         tj = reduced_order_tj(p_loss, mosfet.R_theta_ja, x[2])
         p_out = req.Vout * req.Iout
         eff = p_out / (p_out + p_loss)
+        cost = 1.0 / mosfet.Rds_on + 0.5  # same proxy as the objective
         candidates.append(Candidate(
             mosfet_pn=mosfet.part_number, fsw_khz=round(fsw_khz, 1),
             L_uh=round(float(x[1]), 2), v_in_m_s=round(float(x[2]), 2),
             efficiency=round(eff, 4), tj_max_c=round(tj, 1),
-            cost=round(float(f[-1]) if len(objectives) > 2 else 0.0, 3),
+            cost=round(cost, 3),
             feasible=True,
         ))
 
-    # non-dominated sort for ranks (simple O(n^2), front sizes are small)
-    if objectives and "efficiency" in objectives:
-        # convert back: lower F = better; efficiency was negated
-        def dominates(a: Candidate, b: Candidate) -> bool:
-            ae, at = a.efficiency, a.tj_max_c
-            be, bt = b.efficiency, b.tj_max_c
-            better_or_equal = (ae >= be and at <= bt and a.cost <= b.cost)
-            strictly = (ae > be or at < bt or a.cost < b.cost)
-            return better_or_equal and strictly
-        for a in candidates:
-            a.rank = 0
-        for a in candidates:
-            for b in candidates:
-                if a is b:
-                    continue
-                if b.rank <= a.rank and _dom(b, a):
-                    a.rank += 1
-        candidates.sort(key=lambda c: c.rank)
+    # deterministically order the front (Pareto rank all zero)
+    candidates.sort(key=lambda c: (c.mosfet_pn, c.fsw_khz))
     return candidates
-
-
-def _dom(a: Candidate, b: Candidate) -> bool:
-    """a dominates b (all objectives >=, one strictly >)."""
-    ge = (a.efficiency >= b.efficiency and a.tj_max_c <= b.tj_max_c
-          and a.cost <= b.cost)
-    st = (a.efficiency > b.efficiency or a.tj_max_c < b.tj_max_c
-          or a.cost < b.cost)
-    return ge and st

@@ -115,6 +115,38 @@ TOOL_SCHEMAS = [
         },
     },
     {
+        "name": "analyze_control_loop",
+        "description": (
+            "Design the Type III compensator and compute phase/gain margins "
+            "deterministically (python-control/scipy), grounding the loop "
+            "analysis in the SELECTED L/C/ESR. Call after select_components. "
+            "Stability margins are never LLM-judged."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "control_law": {"type": "string",
+                                "enum": ["voltage", "peak-current"],
+                                "description": "control scheme (default voltage)"},
+            },
+        },
+    },
+    {
+        "name": "electro_thermal_converge",
+        "description": (
+            "Run the electro-thermal fixed-point loop: recompute losses at the "
+            "operating Tj (Rds_on tempco from the database), get Tj back, iterate "
+            "up to 5 times until dTj < 2 degC. Non-convergence is a validation "
+            "failure. Call after select_components to get the self-consistent Tj."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "v_in_m_s": {"type": "number", "description": "airflow speed m/s"},
+            },
+        },
+    },
+    {
         "name": "read_design_memory",
         "description": "Look up past design outcomes for a spec signature.",
         "parameters": {
@@ -323,6 +355,69 @@ def tj_per_device_C(ctx, result) -> dict:
     return {k: round(v - 273.15, 2) for k, v in result.tj_per_device.items()}
 
 
+def tool_analyze_control_loop(ctx: ToolContext, control_law: str = "voltage") -> dict:
+    if ctx.selected is None or ctx.sizing is None:
+        return {"error": "call select_components first (need real L/C/ESR)"}
+    try:
+        from pyspice_openfoam_agent.control_loop.design import analyze_control_loop
+        from pyspice_openfoam_agent.design.object import Design, Requirements
+
+        d = Design()
+        d.requirements = Requirements(
+            Vin=ctx.spec.Vin, Vout=ctx.spec.Vout, Iout=ctx.spec.Iout,
+            fsw_khz=ctx.spec.fsw / 1e3, ripple_v=ctx.spec.Vripple)
+        d.topology.name = ctx.sizing.topology
+        v = analyze_control_loop(
+            d, ctx.sizing,
+            L=ctx.selected.inductor.L, C=ctx.selected.capacitor.C,
+            ESR=ctx.selected.capacitor.ESR, control_law=control_law,
+            f_sw_hz=ctx.spec.fsw)
+    except Exception as e:
+        return {"error": f"control-loop analysis failed: {e}"}
+    ctx.artifacts["control_loop"] = {
+        "passed": v.passed, "phase_margin_deg": v.phase_margin_deg,
+        "gain_margin_db": v.gain_margin_db, "crossover_hz": v.crossover_hz,
+        "compensator": v.compensator, "reasons": v.reasons,
+    }
+    return {
+        "passed": v.passed,
+        "phase_margin_deg": v.phase_margin_deg,
+        "gain_margin_db": v.gain_margin_db,
+        "crossover_kHz": round(v.crossover_hz / 1e3, 2),
+        "compensator": v.compensator,
+        "compensator_zeros_hz": v.compensator_zeros_hz,
+        "compensator_poles_hz": v.compensator_poles_hz,
+        "reasons": v.reasons,
+    }
+
+
+def tool_electro_thermal_converge(ctx: ToolContext, v_in_m_s: float | None = None) -> dict:
+    if ctx.selected is None:
+        return {"error": "call select_components first"}
+    v_in = float(v_in_m_s) if v_in_m_s else ctx.v_in_default
+    try:
+        from pyspice_openfoam_agent.thermal.electro_thermal import converge_for_design
+        from pyspice_openfoam_agent.design.object import Requirements
+
+        req = Requirements(
+            Vin=ctx.spec.Vin, Vout=ctx.spec.Vout, Iout=ctx.spec.Iout,
+            fsw_khz=ctx.spec.fsw / 1e3, ripple_v=ctx.spec.Vripple)
+        r = converge_for_design(req, ctx.selected.mosfet, v_in_m_s=v_in)
+    except Exception as e:
+        return {"error": f"electro-thermal convergence failed: {e}"}
+    ctx.artifacts["electro_thermal"] = {
+        "converged": r.converged, "final_tj_C": r.final_tj_c,
+        "iterations": r.iterations, "reason": r.reason,
+    }
+    return {
+        "converged": r.converged,
+        "final_tj_C": r.final_tj_c,
+        "iterations": r.iterations,
+        "trace": r.tj_history,
+        "note": r.reason,
+    }
+
+
 def tool_read_design_memory(ctx: ToolContext, Vin: float, Vout: float, Iout: float,
                             fsw_khz: float) -> dict:
     from pyspice_openfoam_agent.orchestrator.memory.design_memory import DesignMemory
@@ -356,6 +451,10 @@ def dispatch(ctx: ToolContext, name: str, args: dict) -> ToolResult:
             payload = tool_run_spice(ctx)
         elif name == "run_thermal":
             payload = tool_run_thermal(ctx, **args)
+        elif name == "analyze_control_loop":
+            payload = tool_analyze_control_loop(ctx, **args)
+        elif name == "electro_thermal_converge":
+            payload = tool_electro_thermal_converge(ctx, **args)
         elif name == "read_design_memory":
             payload = tool_read_design_memory(ctx, **args)
         else:

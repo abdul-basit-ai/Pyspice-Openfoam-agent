@@ -4,6 +4,8 @@ P13 Pareto optimization."""
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from pyspice_openfoam_agent.library.loader import load_library
@@ -15,6 +17,8 @@ from pyspice_openfoam_agent.sizing.spec_parser import (
     format_questions,
     parse_spec,
 )
+from pyspice_openfoam_agent.sizing.engine import Spec, size
+from pyspice_openfoam_agent.netlist.selector import select_components
 from pyspice_openfoam_agent.sizing.topology_select import evaluate_topologies, is_ambiguous, recommend_topology
 from pyspice_openfoam_agent.sizing.screening import screen
 from pyspice_openfoam_agent.netlist.validate import validate_netlist
@@ -158,12 +162,11 @@ def test_p4_prior_version_rejected_then_marked(tmp_path):
 
 
 def test_p4_newer_schema_rejected(tmp_path):
-    from pathlib import Path
     newer = json.dumps({"schema_version": SCHEMA_VERSION + 5,
                         "design": {"future_field": 1}})
     p = tmp_path / "new.json"
     p.write_text(newer)
-    with pytest.raises(DesignError, match="NEWER schema"):
+    with pytest.raises(DesignError, match="Migrate explicitly"):
         Design.load(p)
 
 
@@ -200,6 +203,10 @@ def test_p5_valid_netlist_passes(tmp_path):
 Vin in 0 DC 12
 Shs in sw gate_hs 0 HS_MOD
 Sls sw 0 gate_ls 0 LS_MOD
+.model HS_MOD SW(Ron=0.0014 Roff=1e9 Vt=2.5 Vh=0.1)
+.model LS_MOD SW(Ron=0.0014 Roff=1e9 Vt=2.5 Vh=0.1)
+Vgate_hs gate_hs 0 DC 5
+Vgate_ls gate_ls 0 DC 0
 Lout sw lx 4.7u
 Rdcr lx out 0.0143
 Cout out out_esr 47u
@@ -229,11 +236,8 @@ R3 orphan out 1k
 
 
 def test_p6_passes_healthy_design(lib):
-    from pyspice_openfoam_agent.sizing.engine import size
-    from pyspice_openfoam_agent.netlist.selector import select_components
-
-    spec = type("S", (), dict(Vin=12.0, Vout=5.0, Iout=5.0, fsw=500e3,
-                              ripple_ratio=0.40, Vripple=0.05))()
+    spec = Spec(Vin=12.0, Vout=5.0, Iout=5.0, fsw=500e3,
+                ripple_ratio=0.40, Vripple=0.05)
     sizing = size(spec)
     sel = select_components(lib, spec, sizing)
     v = screen(12.0, 5.0, 5.0, 500e3, sizing, sel.mosfet, sel.inductor, sel.capacitor)
@@ -241,11 +245,8 @@ def test_p6_passes_healthy_design(lib):
 
 
 def test_p6_rejects_undersized_mosfet(lib):
-    from pyspice_openfoam_agent.sizing.engine import size
-    from pyspice_openfoam_agent.netlist.selector import select_components
-
-    spec = type("S", (), dict(Vin=60.0, Vout=5.0, Iout=5.0, fsw=500e3,
-                              ripple_ratio=0.40, Vripple=0.05))()
+    spec = Spec(Vin=60.0, Vout=5.0, Iout=5.0, fsw=500e3,
+                ripple_ratio=0.40, Vripple=0.05)
     sizing = size(spec)
     sel = select_components(lib, spec, sizing)
     # force a 25V MOSFET into a 60V design: screening must reject
@@ -307,9 +308,10 @@ def test_p12_energy_balance_catches_bogus_tj():
     from pyspice_openfoam_agent.thermal.validation import validate_cht_result
 
     log = "Solving for Ux, Initial residual = 0.1, Final residual = 0.001\n"
-    # 2.6W with R_eff far outside plausible bounds (Tj rise of 200K = 77 K/W)
-    v = validate_cht_result(log, tj_max_k=500.0, power_in_w=2.6, ambient_k=300.0)
+    # 0.5W with Tj_max 500K => R_eff = 260 K/W, far outside [0.5, 100]
+    v = validate_cht_result(log, tj_max_k=500.0, power_in_w=0.5, ambient_k=300.0)
     assert v.energy_balance_ok is False
+    assert v.energy_balance_ok is not None
     assert not v.valid
 
 

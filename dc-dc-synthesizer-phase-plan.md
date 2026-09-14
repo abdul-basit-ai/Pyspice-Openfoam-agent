@@ -446,3 +446,38 @@ case.control_dict["endTime"] = 1000
 | 12 | Manifest validates against schema | Entire phase — new |
 | 13 | Suite passes green | Entire phase — new |
 | 14 | (n/a — optional) | Reframed as SPICE-subcircuit reuse of manufacturer models, not a from-scratch model |
+---
+
+## Implementation Status (per updated_project_goals.md renumbering)
+
+Built, tested (125 passed / 4 env-gated skips in-container), and wired through
+the orchestrator and UI:
+
+- **Phases 1–5**: component DB (+ Rds_on/DCR/ESR/Vf tempcos, core-loss params,
+  gate-driver / controller-IC / diode categories), NL spec parser with the
+  ask-if-unspecified protection policy, multi-criteria topology selection,
+  unified Design object (schema_version + migration), selector + netlist
+  connectivity validation (floating-node detection).
+- **Phase 6 (goals gap #1)**: control-loop analysis — Type III compensator,
+  deterministic phase/gain margins via python-control/scipy, never
+  LLM-judged. New `control_loop/design.py` + orchestrator tool.
+- **Phase 7 + electro-thermal (goals gap #2)**: fast screening gate + the
+  fixed-point Tj convergence loop (capped 5 iters, |dTj|<2 degC, non-
+  convergence = validation failure). New `thermal/electro_thermal.py` + tool.
+- **Phases 10–13**: mesh fidelity presets (fast/balanced/high), CHT solver,
+  thermal-result validation (NaN/residual/energy-balance checks),
+  reduced-order thermal tier.
+- **Phase 13–15 (goals gap #3)**: `pymoo` NSGA-II Pareto optimizer over
+  (MOSFET, fsw, L, airflow) with reduced-order thermal per candidate and full
+  CHT deferred to frontier finalists (two-tier policy).
+- **Phase 17**: interactive UI — Circuit / Thermal / Results tabs now surface
+  the control-loop verdict and electro-thermal convergence on top of the
+  existing schematic + waveform rendering.
+- **LLM**: Gemini removed; OpenRouter + DeepSeek Flash is the sole provider;
+  model + temperature logged for reproducibility (goals gap #4); provenance
+  and the no-hallucination rule apply to all design decisions.
+
+Environment-gated skips — the **4 `test_solver.py` CHT integration tests**
+(`chtMultiRegionSimpleFoam`) run and pass when the OpenFOAM environment is
+sourced first (`source /usr/lib/openfoam/openfoam2406/etc/bashrc`); 96s,
+real CHT solves. They are skipped on `pytest tests/` without that env.

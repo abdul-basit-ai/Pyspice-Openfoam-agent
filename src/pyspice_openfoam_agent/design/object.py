@@ -40,11 +40,11 @@ class DesignError(ValueError):
 class Requirements:
     """User constraints: hard limits + optimization objectives (P2 output)."""
 
-    Vin: float
-    Vout: float
-    Iout: float
-    fsw_khz: float
-    ripple_v: float
+    Vin: float = 0.0
+    Vout: float = 0.0
+    Iout: float = 0.0
+    fsw_khz: float = 500.0
+    ripple_v: float = 0.01
     ripple_ratio: float = 0.30
     efficiency_target: float | None = None
     tj_max_c: float = 150.0
@@ -64,7 +64,7 @@ class Requirements:
 
 @dataclass
 class TopologyChoice:
-    name: str  # buck | boost | buck_boost
+    name: str = ""  # buck | boost | buck_boost (set during P3)
     control_law: str = "voltage"  # voltage | peak-current
     rationale: str = ""  # P3's explanation contract (why this topology)
     alternatives_considered: list[str] = field(default_factory=list)
