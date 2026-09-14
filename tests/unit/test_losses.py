@@ -186,12 +186,16 @@ def test_checkpoint_current_recovery_sane(buck_run) -> None:
     assert lb.i_l_peak == pytest.approx(PUBLISHED["Iout"] + di / 2, rel=0.15)
 
 
-def test_buck_only_guard() -> None:
+def test_boost_now_supported() -> None:
+    """Boost no longer raises 'buck only' — it extracts (node mapping boost)."""
     t = np.linspace(0, 1e-3, 100)
     fake = TransientResult(
-        vectors={"time": t, "sw": np.zeros(100), "out": np.zeros(100)}
+        vectors={"time": t, "sw": np.zeros(100), "out": np.zeros(100),
+                 "in0": np.full(100, 12.0)}
     )
     m = _make_mosfet("Z", Qg=49e-9, Qgd=9.5e-9, V_plateau=4.5)
-    with pytest.raises(LossExtractionError, match="buck only"):
-        extract_losses(fake, m, 4.7e-6, 0.0143, vin=12, vout=12, fsw=500e3,
-                       topology="boost", settle_time=0)
+    lb = extract_losses(fake, m, 4.7e-6, 0.0143, vin=12, vout=12, fsw=500e3,
+                        topology="boost", settle_time=0)
+    # topology-aware: inductor spans in0->sw (boost), switch level_hi = vout
+    assert lb.losses.total >= 0.0
+    assert "boost" in lb.notes[-1]
