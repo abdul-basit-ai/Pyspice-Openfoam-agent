@@ -177,6 +177,36 @@
         "ripple_ratio": 0.3
       }
     },
+    "576d432da8697cf1": {
+      "attempts": [
+        {
+          "best_config": {
+            "capacitor": "10TPB220M",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-14T20:23:07+00:00",
+          "outcome": {
+            "converged": true,
+            "tj_per_device_C": {
+              "board": 29.03,
+              "hs_mosfet": 29.08,
+              "inductor": 28.06,
+              "ls_mosfet": 28.94
+            },
+            "v_in_m_s": 1.0
+          }
+        }
+      ],
+      "spec": {
+        "Iout": 5.0,
+        "Vin": 5.0,
+        "Vout": 8.0,
+        "Vripple": 0.035,
+        "fsw_khz": 400.0,
+        "ripple_ratio": 0.3
+      }
+    },
     "698ac71f510218d9": {
       "attempts": [
         {

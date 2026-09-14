@@ -137,6 +137,35 @@ def test_detector_does_not_converge_on_a_still_ramping_waveform() -> None:
     assert result.cycle_index is None
 
 
+def test_detector_rejects_ringing_overshoot_peak() -> None:
+    """A converter that overshoots then rings back must NOT be reported at the
+    overshoot peak (a locally-flat point mid-ringdown). Regression for the
+    boost startup mis-trigger: 3 flat cycles at the 15 V peak, target 12 V.
+    """
+    period = 2e-6
+    t = np.linspace(0, 400 * period, 80000)
+    # overshoot to 15V then exponential decay back to 12V (boost-like)
+    y = 12.0 + 3.0 * np.exp(-t / (60 * period))
+    result = detect_steady_state(t, y, period, threshold=1e-3, consecutive=3,
+                                 expected_level=12.0)
+    assert result.converged
+    assert result.cycle_index is not None
+    # must converge at ~12V, not at the 15V plateau: cycle avg within 15% of 12
+    final = float(result.cycle_averages[result.cycle_index])
+    assert abs(final - 12.0) < 0.15 * 12.0, f"converged at {final:.2f}, expected ~12V"
+
+
+def test_detector_accepts_true_sustain() -> None:
+    """A genuine settled waveform still converges promptly (no over-rejection)."""
+    period = 2e-6
+    t = np.linspace(0, 200 * period, 40000)
+    y = 5.0 * (1 - np.exp(-t / (20 * period))) + 0.01 * np.sin(2 * np.pi * t / period)
+    result = detect_steady_state(t, y, period, threshold=1e-3, consecutive=3,
+                                 expected_level=5.0)
+    assert result.converged
+    assert result.cycle_index is not None
+
+
 def test_detector_handles_too_short_a_run() -> None:
     period = 2e-6
     t = np.linspace(0, 0.5 * period, 100)  # less than one full cycle

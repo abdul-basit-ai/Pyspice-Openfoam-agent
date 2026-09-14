@@ -121,3 +121,11 @@ def test_numeric_package_codes_stay_strings(lib: Library) -> None:
     assert all(isinstance(c.package, str) for c in caps)
     ind = lib.inductors["74437346010"]
     assert isinstance(ind.package, str) and ind.package == "7345"
+
+
+def test_library_has_boost_class_inductors(lib) -> None:
+    """Boost/SEPIC designs need >20uH (the buck-tuned 12uH ceiling was the
+    blocker for testing any realistic boost). These must exist now."""
+    big = [pn for pn, i in lib.inductors.items() if i.L > 20e-6]
+    assert len(big) >= 4, f"need boost-class inductors, found {big}"
+    assert max(i.L for i in lib.inductors.values()) >= 100e-6
