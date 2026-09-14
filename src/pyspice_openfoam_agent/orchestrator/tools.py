@@ -333,16 +333,37 @@ def tool_run_thermal(ctx: ToolContext, v_in_m_s: float | None = None) -> dict:
         "v_in_m_s": v_in, "tj_per_device_C": tj_per_device_C(ctx, result),
         "converged": result.converged,
     }
-    # thermal PNG for the UI (best-effort; needs OSMesa in the image).
-    # Run it in a SUBPROCESS with a hard timeout: `pv.Plotter(off_screen=True)`
+    # thermal PNG(s) for the UI (best-effort; needs OSMesa in the image).
+    # Run each in a SUBPROCESS with a hard timeout: `pv.Plotter(off_screen=True)`
     # on a headless container without DISPLAY/OSMesa BLOCKS on GL init rather
     # than raising, so a plain try/except here would deadlock the whole agent.
     # A subprocess.timeout kills the hang and lets the run proceed without the
-    # image (the scalar Tj table above is still the source of truth).
+    # images (the scalar Tj table is still the source of truth).
     try:
         import subprocess
         import sys
 
+        # 1) multiview annotated composite
+        mv_png = Path(ctx.run_dir) / "tj_multiview.png"
+        subprocess.run(
+            [sys.executable, "-c",
+             "from pyspice_openfoam_agent.ui.thermal_viewer import render_multiview_annotated;"
+             "render_multiview_annotated(%r, %r, %r)" % (str(cp.root), str(mv_png), result.tj_per_device)],
+            timeout=60, capture_output=True, check=False,
+        )
+        if mv_png.exists() and mv_png.stat().st_size > 1000:
+            ctx.artifacts["tj_multiview_png"] = str(mv_png)
+        # 2) interactive 3D HTML (self-contained, opens in a new tab)
+        try:
+            from pyspice_openfoam_agent.ui.thermal_viewer import export_3d_html
+
+            html_out = Path(ctx.run_dir) / "thermal_3d.html"
+            export_3d_html(cp.root, html_out, tj_map=result.tj_per_device)
+            if html_out.exists() and html_out.stat().st_size > 2000:
+                ctx.artifacts["tj_3d_html"] = str(html_out)
+        except Exception:
+            pass  # interactive HTML is additive; a failure shouldn't fail the run
+        # 3) single-snapshot (legacy) for the Classic tab
         png_path = Path(ctx.run_dir) / "tj_snapshot.png"
         code = (
             "from pyspice_openfoam_agent.thermal.extraction import render_temperature_png;"

@@ -121,3 +121,57 @@ def test_run_state_carries_control_loop_artifacts(tmp_path) -> None:
     assert s["artifacts"]["electro_thermal"]["final_tj_C"] == 42.3
     assert s["history"][0]["tool"] == "analyze_control_loop"
     assert s["history"][1]["tool"] == "electro_thermal_converge"
+
+
+# ---------- Phase 17 thermal viewer (multiview + interactive HTML) ----------
+
+
+def test_export_3d_html_embeds_mesh(tmp_path) -> None:
+    """The interactive 3D HTML is self-contained: embeds mesh JSON + three.js."""
+    import json as _json
+    from pyspice_openfoam_agent.ui.thermal_viewer import export_3d_html
+
+    # build a tiny synthetic OpenFOAM-like case with a T field
+    pv = pytest.importorskip("pyvista")
+    case = tmp_path / "mini_case"
+    (case / "system").mkdir(parents=True)
+    # POpenFOAMReader needs real inspection structure; instead test the HTML
+    # generator works given region dicts — monkey the loader is overkill.
+    # Minimal well-formedness: the template contains the import map + mesh path.
+    from pathlib import Path
+    out = export_3d_html.__doc__ or ""
+    # direct: call _solid_regions is heavy; just assert template internals via
+    # a throwaway generation needs a case. Skip if no real case exists.
+    import os
+    real = None
+    for cand in [os.path.join("runs", "thermal_direct", "thermal_case")]:
+        if Path(cand).exists():
+            real = Path(cand).resolve()
+    if real is None:
+        pytest.skip("no CHT case available to render")
+    html = export_3d_html(real, tmp_path / "v.html", tj_map={"hs": 304.6})
+    text = Path(html).read_text(encoding="utf-8")
+    assert "three@0.160" in text          # import map
+    assert "from 'three'" in text or "type=\"module\"" in text
+    assert '"points"' in text and '"faces"' in text   # embedded mesh
+    assert len(text) > 2000
+    # no unrendered python format braces leaked
+    import re
+    leaks = [x for x in re.findall(r"(?<!\$)\{[a-z_]+\}", text)]
+    assert not leaks, f"format leaks: {leaks}"
+
+
+def test_render_multiview_annotated(tmp_path) -> None:
+    """Annotated 2x2 composite PNG is generated (needs OSMesa/pyvista)."""
+    pytest.importorskip("pyvista")
+    import os
+    from pathlib import Path
+    from pyspice_openfoam_agent.ui.thermal_viewer import render_multiview_annotated
+    real = None
+    for cand in [os.path.join("runs", "thermal_direct", "thermal_case")]:
+        if Path(cand).exists():
+            real = Path(cand).resolve()
+    if real is None:
+        pytest.skip("no CHT case available to render")
+    out = render_multiview_annotated(real, tmp_path / "mv.png", tj_map={"hs": 304.6})
+    assert Path(out).exists() and Path(out).stat().st_size > 5000

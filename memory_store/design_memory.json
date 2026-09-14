@@ -1,5 +1,53 @@
 {
   "records": {
+    "03475a859b42f216": {
+      "attempts": [
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL5030-222ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-14T21:47:45+00:00",
+          "outcome": {
+            "converged": true,
+            "tj_per_device_C": {
+              "board": 30.33,
+              "hs_mosfet": 30.41,
+              "inductor": 28.58,
+              "ls_mosfet": 30.09
+            },
+            "v_in_m_s": 1.0
+          }
+        },
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL5030-222ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-14T21:49:45+00:00",
+          "outcome": {
+            "converged": true,
+            "tj_per_device_C": {
+              "board": 30.33,
+              "hs_mosfet": 30.41,
+              "inductor": 28.58,
+              "ls_mosfet": 30.09
+            },
+            "v_in_m_s": 1.0
+          }
+        }
+      ],
+      "spec": {
+        "Iout": 5.0,
+        "Vin": 6.0,
+        "Vout": 7.5,
+        "Vripple": 0.05,
+        "fsw_khz": 650.0,
+        "ripple_ratio": 0.3
+      }
+    },
     "09684a9137676623": {
       "attempts": [
         {
@@ -39,6 +87,36 @@
         "Vout": 5.0,
         "Vripple": 0.05,
         "fsw_khz": 500.0,
+        "ripple_ratio": 0.3
+      }
+    },
+    "1ce4864b162eb7a6": {
+      "attempts": [
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-14T21:16:59+00:00",
+          "outcome": {
+            "converged": true,
+            "tj_per_device_C": {
+              "board": 30.73,
+              "hs_mosfet": 30.83,
+              "inductor": 28.77,
+              "ls_mosfet": 30.5
+            },
+            "v_in_m_s": 1.0
+          }
+        }
+      ],
+      "spec": {
+        "Iout": 4.0,
+        "Vin": 10.0,
+        "Vout": 4.0,
+        "Vripple": 0.04,
+        "fsw_khz": 650.0,
         "ripple_ratio": 0.3
       }
     },
@@ -306,6 +384,66 @@
         "Vout": 5.0,
         "Vripple": 0.03,
         "fsw_khz": 350.0,
+        "ripple_ratio": 0.3
+      }
+    },
+    "920a1fab34065a93": {
+      "attempts": [
+        {
+          "best_config": {
+            "capacitor": "10TPB220M",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-14T21:43:06+00:00",
+          "outcome": {
+            "converged": true,
+            "tj_per_device_C": {
+              "board": 34.03,
+              "hs_mosfet": 34.2,
+              "inductor": 31.05,
+              "ls_mosfet": 33.69
+            },
+            "v_in_m_s": 1.0
+          }
+        }
+      ],
+      "spec": {
+        "Iout": 5.0,
+        "Vin": 5.0,
+        "Vout": 8.0,
+        "Vripple": 0.05,
+        "fsw_khz": 650.0,
+        "ripple_ratio": 0.3
+      }
+    },
+    "ba5cae00b8e13ded": {
+      "attempts": [
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-14T21:31:01+00:00",
+          "outcome": {
+            "converged": true,
+            "tj_per_device_C": {
+              "board": 31.28,
+              "hs_mosfet": 31.39,
+              "inductor": 29.12,
+              "ls_mosfet": 31.02
+            },
+            "v_in_m_s": 1.0
+          }
+        }
+      ],
+      "spec": {
+        "Iout": 5.0,
+        "Vin": 10.0,
+        "Vout": 5.0,
+        "Vripple": 0.05,
+        "fsw_khz": 600.0,
         "ripple_ratio": 0.3
       }
     }

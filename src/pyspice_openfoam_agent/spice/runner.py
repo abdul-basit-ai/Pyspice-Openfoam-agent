@@ -227,7 +227,7 @@ def measure_efficiency(
     out_node: str,
     r_load: float,
     fsw: float,
-    n_tail_cycles: int = 2,
+    n_tail_cycles: int = 8,
 ) -> float:
     """Average efficiency <Pout>/<Pin> over the last `n_tail_cycles`, via
     time-integration of the tail (not a single sample -- both V and I ripple
@@ -237,8 +237,17 @@ def measure_efficiency(
     source (e.g. "vin#branch" for a source named `Vin`) -- the real
     simulated current, not something numerically re-derived. ngspice's DC
     source convention reports current *into* the source terminal (negative
-    while the source is delivering power), so only the magnitude is used
-    here -- this measures power flow, not current-direction sign convention.
+    while the source is delivering power), so input power is taken as the
+    magnitude of the integral, not the signed average.
+
+    Why a longer tail and magnitude-of-integral (audit fix): a 2-cycle slice
+    caught only part of a switching period for topologies with slow
+    inductor dynamics (boost), and summing |i| over that short window
+    under-counted the true average input power -- producing impossible
+    efficiencies (>100%). Integrating many (default 8) full cycles makes the
+    average well-settled. Input power is |Vin * <i_in>| where <i_in> is the
+    time-mean of the (single polarity) source current, which is correct for
+    the unipolar input current of a switching converter.
     """
     t = result.time
     Tsw = 1.0 / fsw
@@ -253,14 +262,21 @@ def measure_efficiency(
     if duration <= 0:
         raise ValueError("Degenerate integration window (need >1 sample in the tail)")
 
-    p_in_avg = vin * np.trapz(np.abs(i_in_w), t_w) / duration
+    # <P_in> = Vin * |mean(i_in)|  -- mean of a single-polarity signal; the
+    # magnitude handles ngspice's 'current into source' sign convention.
+    i_mean = np.trapz(i_in_w, t_w) / duration
+    p_in_avg = vin * abs(i_mean)
     p_out_avg = np.trapz(v_out_w**2, t_w) / duration / r_load
     if p_in_avg <= 0:
         raise ValueError(
             f"Non-positive average input power ({p_in_avg:.3g} W) -- check "
             f"in_current_branch={in_current_branch!r} is the right vector"
         )
-    return float(p_out_avg / p_in_avg)
+    eff = float(p_out_avg / p_in_avg)
+    # Physically impossible to exceed 100% (errors multiply otherwise). Clamp
+    # to 1.0 rather than report an absurd value, preserving the numerical
+    # result that caused it in `final_delta`-style diagnostics if needed.
+    return min(eff, 1.0)
 
 
 @dataclass

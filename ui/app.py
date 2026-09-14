@@ -161,11 +161,35 @@ def tab_thermal(state: dict | None, artifacts: dict) -> None:
         worst = max(tj.values())
         st.progress(min(worst / limit, 1.0),
                      text=f"Tj_max {worst:.1f} / {limit:.0f} °C limit")
-    png = artifacts.get("tj_png")
-    if png and Path(png).exists():
-        st.image(str(png), caption="Temperature field (solid regions)")
+
+    mv = artifacts.get("tj_multiview_png")
+    if mv and Path(mv).exists():
+        st.subheader("Annotated multi-view")
+        st.image(str(mv), caption="iso / top / front / side temperature field (K)")
     else:
-        st.caption("3D render unavailable (needs OSMesa in the container image) — table above is the source of truth.")
+        png = artifacts.get("tj_png")
+        if png and Path(png).exists():
+            st.image(str(png), caption="Temperature field (solid regions)")
+        else:
+            st.caption("temperature render appears after the CHT solve completes")
+
+    html = artifacts.get("tj_3d_html")
+    if html and Path(html).exists():
+        st.subheader("Interactive 3D")
+        st.info("Self-contained three.js viewer (no server/Python needed). "
+                "Orbit: left-drag rotate · scroll zoom · right-drag pan.")
+        # 1) live embed straight into the page (works over HTTP)
+        with st.expander("▶  Interactive 3D (embed)", expanded=True):
+            st.components.v1.html(Path(html).read_text(encoding="utf-8"), height=600, scrolling=False)
+        # 2) self-contained file you can save and open in a new tab, offline
+        st.caption(f"Run directory: `{Path(html).parent}`")
+        st.download_button(
+            "Download thermal_3d.html (open in a new tab)",
+            data=Path(html).read_bytes(),
+            file_name="thermal_3d.html",
+            mime="text/html",
+            use_container_width=True,
+        )
 
 
 def tab_results(state: dict | None, artifacts: dict) -> None:
@@ -239,9 +263,13 @@ def _run_in_background(task: dict, mode: str, run_id: str) -> None:
                     "Vripple": task["Vripple"]}}]},
                 {"tool_calls": [{"name": "select_components", "args": {}}]},
                 {"tool_calls": [{"name": "build_netlist", "args": {}}]},
+                {"tool_calls": [{"name": "analyze_control_loop", "args": {}}]},
                 {"tool_calls": [{"name": "run_spice", "args": {}}]},
-                {"tool_calls": [{"name": "run_thermal", "args": {}}]},
-                {"done": True, "final": {"summary": "design complete"}},
+                {"tool_calls": [{"name": "electro_thermal_converge", "args": {"v_in_m_s": 1.0}}]},
+                {"tool_calls": [{"name": "run_thermal", "args": {"v_in_m_s": 1.0}}]},
+                {"done": True, "final": {"summary":
+                    f"{task.get('Vout')} V design pipeline complete — scripted (no LLM) mode. "
+                    "Run the OpenRouter mode for a full LLM-written engineering summary."}},
             ]
             run_agent(task, run_dir, mock_responses=mock)
         else:
@@ -259,11 +287,7 @@ def main() -> None:
     state = None
     run_id = None
 
-    if action["action"] == "view":
-        run_id = action["run_id"]
-        st.session_state["active_run"] = run_id
-        state = RunState(RUNS_DIR / run_id).read()
-    elif action["action"] == "run":
+    if action["action"] == "run":
         import uuid
 
         run_id = f"run_{uuid.uuid4().hex[:8]}"
@@ -279,6 +303,14 @@ def main() -> None:
             daemon=True,
         )
         t.start()
+        # surface the fresh (seed) state immediately so the first paint is the
+        # new run, not a leftover previous one
+        state = rs.read()
+    elif action["action"] == "view":
+        # explicit view: always read that run's FINAL state.json
+        run_id = action["run_id"]
+        st.session_state["active_run"] = run_id
+        state = RunState(RUNS_DIR / run_id).read()
 
     # on reruns (auto-refresh), recover the active run from session state
     if run_id is None and st.session_state.get("active_run"):

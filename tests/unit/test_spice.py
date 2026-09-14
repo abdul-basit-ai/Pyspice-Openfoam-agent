@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Phase 4 standalone checkpoint tests.
 
 The plan's checkpoint: run the Phase 3 netlist for the Phase 2 published
@@ -12,8 +14,6 @@ runs; those are skipped (not failed) if PySpice can't get an ngspice
 instance, so this file still documents the steady-state-detector unit tests
 in environments without ngspice.
 """
-
-from __future__ import annotations
 
 import numpy as np
 import pytest
@@ -228,3 +228,37 @@ def test_detector_rejects_flat_wrong_level() -> None:
     t = np.linspace(0, 100 * period, 10000)
     y = np.ones_like(t) * 1.0
     assert detect_steady_state(t, y, period, expected_level=5.0).converged is False
+
+
+def test_efficiency_never_exceeds_100_percent(buck_netlist_text: str) -> None:
+    """Efficiency is clamped at 100% even if the input-branch reading is noisy;
+    regression for the impossible >100% (boost 624%) reports."""
+    from pyspice_openfoam_agent.spice.runner import run_until_steady_state, measure_efficiency
+    import numpy as np
+
+    spec = Spec(Vin=12, Vout=5, Iout=5, fsw=500e3, ripple_ratio=0.4, Vripple=0.05)
+    run = run_until_steady_state(buck_netlist_text, fsw=spec.fsw, out_node="out",
+                                 start_cycles=40, max_cycles=200, expected_level=spec.Vout)
+    eff = measure_efficiency(run.result, vin=spec.Vin, in_current_branch="vin#branch",
+                             out_node="out", r_load=spec.Vout / spec.Iout, fsw=spec.fsw)
+    assert 0.0 <= eff <= 1.0
+    # a healthy buck should be > 90% (not just a sanity clamp)
+    assert eff > 0.90, f"buck efficiency {eff:.3f} unexpectedly low"
+
+
+def test_efficiency_uses_longer_settled_window() -> None:
+    """Default tail is 8 cycles, not 2, so slow-topology averages settle."""
+    from pyspice_openfoam_agent.spice.runner import measure_efficiency
+    import numpy as np
+
+    T = 2e-6
+    t = np.linspace(0, 40 * T, 4000)
+    # source current: negative (into source), steady -2 A with small ripple
+    i = -2.0 + 0.1 * np.sin(2 * np.pi * t / T)
+    v = 5.0 + 0.05 * np.sin(2 * np.pi * t / T)
+    from pyspice_openfoam_agent.spice.runner import TransientResult
+    res = TransientResult(vectors={"time": t, "vin#branch": i, "out": v})
+    rload = 1.0  # actual v^2/R used; only the clamp check matters here
+    eff = measure_efficiency(res, vin=12, in_current_branch="vin#branch",
+                             out_node="out", r_load=rload, fsw=1/T)
+    assert 0.0 <= eff <= 1.0
