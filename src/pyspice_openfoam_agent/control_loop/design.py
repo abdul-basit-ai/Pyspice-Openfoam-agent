@@ -58,29 +58,74 @@ class ControlVerdict:
 
 # ---------------- plant model (buck, averaged, CCM) ----------------
 
-def buck_plant_transfer(
-    Vin: float, L: float, C: float, ESR: float, R_load: float,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Control-to-output Gvd(s) = num(s)/den(s) for a buck, CCM.
-
-    Standard averaged model with a real output-capacitor ESR zero:
-
-        Gvd(s) = Vin * (1 + s*ESR*C)
-                          -----------------------------------------
-                 1 + s/(w0*Q) + (s/w0)^2
-
-    w0 = 1/sqrt(L*C, Q from the parallel load + ESR damping.
-    Returns (num_array, den_array).
-    """
+def _lc_model(L: float, C: float, R_load: float) -> tuple[float, float]:
+    """(w0, Q) of the output LC double-pole with load damping (clamped)."""
     if L <= 0 or C <= 0:
         raise ControlDesignError("plant needs L>0 and C>0")
     w0 = 1.0 / math.sqrt(L * C)
-    # LC double-pole damping: load R provides the dominant damping.
     Q = R_load * math.sqrt(C / L)
     Q = min(max(Q, 0.3), 5.0)  # clamp: extreme light-load Q can be very high
-    num = Vin * np.array([ESR * C, 1.0])
-    den = np.array([1.0 / w0**2, 1.0 / (w0 * Q), 1.0])
-    return num, den
+    return w0, Q
+
+
+def plant_transfer(
+    topology: str, Vin: float, Vout: float, Iout: float,
+    L: float, C: float, ESR: float, R_load: float, D: float | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Control-to-output Gvd(s) = num(s)/den(s), averaged CCM model.
+
+    Canonical power-stage models (Erickson & Maksimovic, Fundamentals of
+    Power Electronics), with a real output-capacitor ESR zero and, for the
+    boost and buck-boost, the RHP zero that governs the achievable crossover:
+
+      Buck:       Gvd = Vin*(1+sRcC) / (1 + s/(w0 Q) + (s/w0)^2)
+                  (LHP; no RHP zero)
+      Boost:      Gvd = Vin*(1+sRcC)*(1 - s*L/D'^2/R) / ( (s/w0)^2 + s/(w0Q) + 1 )
+                  w0 = D'/sqrt(LC), Q = R*D'*sqrt(C/L), RHP zero = D'^2*R/L
+      Buck-boost: Gvd = Vin*(1+sRcC)*(1 - s*L*D/D'^2/R) / ( (s/w0)^2 + s/(w0Q) + 1 )
+                  w0 = D'/sqrt(LC), Q = R*D'*sqrt(C/L), RHP zero = (D'^2 R)/(D L)
+
+    D = duty (pass the SizingResult.D for correctness — buck D=Vout/Vin,
+    boost D=1-Vin/Vout, buck-boost D=Vout/(Vin+Vout)), D' = 1-D. The RHP zero
+    is the reason boost/buck-boost designs must keep crossover well below
+    w_rhpz — a purely buck compensator cannot be blindly reused.
+    """
+    if D is None:
+        # fallback: infer from voltage ratio by topology
+        if topology == "buck":
+            D = Vout / max(Vin, 1e-12)
+        elif topology == "boost":
+            D = 1.0 - min(Vin / max(Vout, 1e-12), 0.999)
+        elif topology == "buck_boost":
+            D = Vout / (Vin + Vout)
+        else:
+            raise ControlDesignError(f"unknown topology for plant: {topology!r}")
+    D = min(max(D, 0.05), 0.95)
+    Dp = 1.0 - D
+    w0, Q = _lc_model(L, C, R_load)
+    esr_zero = ESR * C  # (1 + s*Rc*C)
+
+    if topology == "buck":
+        num = Vin * np.array([esr_zero, 1.0])
+        den = np.array([1.0 / w0**2, 1.0 / (w0 * Q), 1.0])
+    elif topology == "boost":
+        # RHP zero: wz_rhp = D'^2 R / L ; w0 and Q scale with D'
+        wz_rhp = (Dp**2) * R_load / L
+        w0_b, Q_b = Dp * w0, Dp * Q
+        gdc = Vin / (Dp**2)
+        num = gdc * np.polymul(np.array([-1.0 / wz_rhp, 1.0]),
+                               np.array([esr_zero, 1.0]))
+        den = np.array([1.0 / w0_b**2, 1.0 / (w0_b * Q_b), 1.0])
+    elif topology == "buck_boost":
+        wz_rhp = (Dp**2) * R_load / (D * L)
+        w0_b, Q_b = Dp * w0, Dp * Q
+        gdc = Vin / (Dp**2)
+        num = gdc * np.polymul(np.array([-1.0 / wz_rhp, 1.0]),
+                               np.array([esr_zero, 1.0]))
+        den = np.array([1.0 / w0_b**2, 1.0 / (w0_b * Q_b), 1.0])
+    else:
+        raise ControlDesignError(f"unknown topology for plant: {topology!r}")
+    return np.asarray(num, dtype=float), np.asarray(den, dtype=float)
 
 
 # ---------------- compensator design ----------------
@@ -214,17 +259,35 @@ def analyze_control_loop(
     Vout = req.Vout
     fsw = f_sw_hz or (req.fsw_khz * 1e3)
     R_load = Vout / max(req.Iout, 1e-9)
+    topo = design.topology.name or "buck"
 
-    if design.topology.name not in ("buck", ""):
-        # Only the buck average model is implemented; other topologies get a
-        # clear deferral rather than a wrong number.
-        raise ControlDesignError(
-            f"control-loop analysis currently supports buck; got "
-            f"{design.topology.name!r}")
+    if topo not in ("buck", "boost", "buck_boost"):
+        raise ControlDesignError(f"unsupported topology for control-loop: {topo!r}")
 
-    num, den = buck_plant_transfer(Vin, L, C, ESR, R_load)
+    num, den = plant_transfer(topo, Vin, Vout, req.Iout,
+                              L, C, ESR, R_load,
+                              D=sizing.D if sizing else None)
+    # For boost/buck-boost the RHP zero caps crossover (~1/5 f_rhpz is a
+    # standard rule of thumb) — a deterministic guard so the Type III design
+    # never places the loop-gain crossover beyond where the RHP zero makes it
+    # intrinsically unstable.
+    if topo in ("boost", "buck_boost"):
+        D = (sizing.D if sizing and sizing.D else None)
+        if D is None:
+            D = 1 - min(Vin / max(Vout, 1e-12), 0.999) if topo == "boost" \
+                else Vout / (Vin + Vout)
+        D = min(max(D, 0.05), 0.95)
+        Dp = 1.0 - D
+        f_rhp = ((Dp**2) * R_load / L) / (2 * math.pi) if topo == "boost" \
+            else ((Dp**2) * R_load / (D * L)) / (2 * math.pi)
+        fsw_eff = min(fsw, 5.0 * f_rhp)  # crossover <= f_rhp/5 -> keep fsw scope
+        fsw_eff = max(fsw_eff, 1e3)
+    else:
+        f_rhp = float("inf")
+        fsw_eff = fsw
+
     gc_num, gc_den, fc, zeros_hz, poles_hz = design_type_iii(
-        num, den, fsw, L, C, ESR, R_load)
+        num, den, fsw_eff, L, C, ESR, R_load)
     # Loop gain T = Gvd * Gc (H = 1)
     t_num = np.polymul(num, gc_num)
     t_den = np.polymul(den, gc_den)
@@ -258,9 +321,10 @@ def analyze_control_loop(
             f"(crossover ~{fc_meas / 1e3:.1f} kHz, {fsw / 1e3:.0f} kHz switching)")
 
     plant = {
-        "L": L, "C": C, "ESR": ESR, "R_load": R_load,
+        "topology": topo, "L": L, "C": C, "ESR": ESR, "R_load": R_load,
         "Vin": Vin, "f_lc_hz": 1.0 / (2 * math.pi * math.sqrt(L * C)),
         "f_esr_hz": 1.0 / (2 * math.pi * ESR * C),
+        "f_rhpz_hz": (None if not math.isfinite(f_rhp) else round(f_rhp, 1)),
         "f_sw_hz": fsw,
     }
     return ControlVerdict(

@@ -7,7 +7,7 @@ import pytest
 
 from pyspice_openfoam_agent.design.object import Design, Requirements
 from pyspice_openfoam_agent.control_loop.design import (
-    ControlDesignError, analyze_control_loop, buck_plant_transfer,
+    ControlDesignError, analyze_control_loop, plant_transfer,
 )
 
 
@@ -83,17 +83,32 @@ def test_control_loop_grounded_in_real_parts():
 
 def test_control_loop_plant_rejects_bad_lc():
     with pytest.raises(ControlDesignError):
-        buck_plant_transfer(12.0, 0.0, 1e-5, 1e-3, 1.0)
+        plant_transfer("buck", 12.0, 5.0, 5.0, 0.0, 1e-5, 1e-3, 1.0)
 
 
-def test_control_loop_boost_not_supported_yet():
+def test_control_loop_boost_supported():
+    """Boost control-loop now works — no more buck-only raise."""
     d = _buck_design()
     d.topology.name = "boost"
     from pyspice_openfoam_agent.sizing.engine import Spec, size
     spec = Spec(Vin=5, Vout=12, Iout=5, fsw=500e3, ripple_ratio=0.4, Vripple=0.05)
     sizing = size(spec)
-    with pytest.raises(ControlDesignError, match="buck"):
-        analyze_control_loop(d, sizing, L=10e-6, C=100e-6, ESR=3e-3)
+    v = analyze_control_loop(d, sizing, L=10e-6, C=100e-6, ESR=3e-3)
+    # a verdict comes back; RHP zero info is recorded
+    assert v.passed in (True, False)  # boost may legitimately fail margin targets
+    assert v.plant["f_rhpz_hz"] is not None and v.plant["f_rhpz_hz"] > 0
+    assert v.topology == "boost"
+
+
+def test_control_loop_buckboost_supported():
+    d = _buck_design()
+    d.topology.name = "buck_boost"
+    from pyspice_openfoam_agent.sizing.engine import Spec, size
+    spec = Spec(Vin=12, Vout=5, Iout=5, fsw=500e3, ripple_ratio=0.4, Vripple=0.05)
+    sizing = size(spec)
+    v = analyze_control_loop(d, sizing, L=10e-6, C=100e-6, ESR=3e-3)
+    assert v.topology == "buck_boost"
+    assert v.plant["f_rhpz_hz"] is not None
 
 
 # ---------- electro-thermal convergence (goals gap #2) ----------

@@ -1,5 +1,26 @@
 {
   "records": {
+    "09684a9137676623": {
+      "attempts": [
+        {
+          "best_config": {
+            "capacitor": "EEF-CD1E221P",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-14T18:00:57+00:00",
+          "outcome": {}
+        }
+      ],
+      "spec": {
+        "Iout": 5.0,
+        "Vin": 5.0,
+        "Vout": 10.0,
+        "Vripple": 0.02,
+        "fsw_khz": 800.0,
+        "ripple_ratio": 0.3
+      }
+    },
     "1230308979d7aa00": {
       "attempts": [
         {
@@ -85,13 +106,22 @@
           },
           "date": "2026-09-14T14:35:51+00:00",
           "outcome": {}
+        },
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-14T14:40:29+00:00",
+          "outcome": {}
         }
       ],
       "spec": {
         "Iout": 5.0,
         "Vin": 12.0,
         "Vout": 5.0,
-        "Vripple": 0.05,
+        "Vripple": 0.02,
         "fsw_khz": 500.0,
         "ripple_ratio": 0.3
       }
