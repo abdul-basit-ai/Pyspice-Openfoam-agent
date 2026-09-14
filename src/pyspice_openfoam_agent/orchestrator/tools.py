@@ -304,7 +304,6 @@ def tool_run_thermal(ctx: ToolContext, v_in_m_s: float | None = None) -> dict:
     v_in = float(v_in_m_s) if v_in_m_s else ctx.v_in_default
     try:
         # Phase 5 losses on the SPICE steady state (the heat sources)
-        from pyspice_openfoam_agent.spice.losses import extract_losses as _el
         from pyspice_openfoam_agent.spice.runner import run_transient
 
         tran = run_until_steady_state(
@@ -334,12 +333,30 @@ def tool_run_thermal(ctx: ToolContext, v_in_m_s: float | None = None) -> dict:
         "v_in_m_s": v_in, "tj_per_device_C": tj_per_device_C(ctx, result),
         "converged": result.converged,
     }
-    # thermal PNG for the UI (best-effort; needs OSMesa in the image)
+    # thermal PNG for the UI (best-effort; needs OSMesa in the image).
+    # Run it in a SUBPROCESS with a hard timeout: `pv.Plotter(off_screen=True)`
+    # on a headless container without DISPLAY/OSMesa BLOCKS on GL init rather
+    # than raising, so a plain try/except here would deadlock the whole agent.
+    # A subprocess.timeout kills the hang and lets the run proceed without the
+    # image (the scalar Tj table above is still the source of truth).
     try:
-        from pyspice_openfoam_agent.thermal.extraction import render_temperature_png
+        import subprocess
+        import sys
 
-        png = render_temperature_png(cp.root, Path(ctx.run_dir) / "tj_snapshot.png")
-        ctx.artifacts["tj_png"] = str(png)
+        png_path = Path(ctx.run_dir) / "tj_snapshot.png"
+        code = (
+            "from pyspice_openfoam_agent.thermal.extraction import render_temperature_png;"
+            "render_temperature_png(%r, %r)"
+            % (str(cp.root), str(png_path))
+        )
+        subprocess.run(
+            [sys.executable, "-c", code],
+            timeout=45, capture_output=True, check=False,
+        )
+        if png_path.exists():
+            ctx.artifacts["tj_png"] = str(png_path)
+    except subprocess.TimeoutExpired:
+        pass  # headless render hung — degrade gracefully, keep the run moving
     except Exception:
         pass
     return {

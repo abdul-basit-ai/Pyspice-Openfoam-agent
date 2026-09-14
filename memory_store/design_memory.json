@@ -76,6 +76,15 @@
           },
           "date": "2026-09-13T19:56:48+00:00",
           "outcome": {}
+        },
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-14T14:35:51+00:00",
+          "outcome": {}
         }
       ],
       "spec": {

@@ -42,7 +42,7 @@ class OrchestratorError(RuntimeError):
 @dataclass
 class AgentConfig:
     run_dir: Path
-    model: str = "deepseek/deepseek-v4-flash"
+    model: str = "deepseek/deepseek-v4-flash-0731"
     provider: str = "openrouter"  # OpenRouter is the sole LLM provider
     max_steps: int = 12
 
@@ -220,7 +220,7 @@ def _call_openrouter(model: str, state: AgentState) -> dict:
 def run_agent(
     task_spec: dict,
     run_dir: str | Path,
-    model: str = "deepseek/deepseek-v4-flash",
+    model: str = "deepseek/deepseek-v4-flash-0731",
     provider: str = "openrouter",
     max_steps: int = 12,
     mock_responses: list[dict] | None = None,

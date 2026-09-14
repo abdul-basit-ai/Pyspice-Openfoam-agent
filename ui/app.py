@@ -230,7 +230,7 @@ def _run_in_background(task: dict, mode: str, run_id: str) -> None:
     try:
         provider = {"scripted (no LLM)": "mock",
                     "OpenRouter (DeepSeek Flash)": "openrouter"}[mode]
-        model = "deepseek/deepseek-v4-flash"
+        model = "deepseek/deepseek-v4-flash-0731"
         if provider == "mock":
             mock = [
                 {"tool_calls": [{"name": "size_converter", "args": {
