@@ -13,7 +13,14 @@ from pathlib import Path
 
 import yaml
 
-from pyspice_openfoam_agent.library.schema import Capacitor, Inductor, MOSFET
+from pyspice_openfoam_agent.library.schema import (
+    Capacitor,
+    ControllerIC,
+    Diode,
+    GateDriver,
+    Inductor,
+    MOSFET,
+)
 
 LIBRARY_DIR = Path(__file__).parent / "data"
 
@@ -21,6 +28,9 @@ _FILES = {
     "mosfets": (MOSFET, "mosfets.yaml"),
     "inductors": (Inductor, "inductors.yaml"),
     "capacitors": (Capacitor, "capacitors.yaml"),
+    "gate_drivers": (GateDriver, "gate_drivers.yaml"),
+    "controllers": (ControllerIC, "controllers.yaml"),
+    "diodes": (Diode, "diodes.yaml"),
 }
 
 
@@ -31,12 +41,18 @@ class Library:
         self.mosfets: dict[str, MOSFET] = {}
         self.inductors: dict[str, Inductor] = {}
         self.capacitors: dict[str, Capacitor] = {}
+        self.gate_drivers: dict[str, GateDriver] = {}
+        self.controllers: dict[str, ControllerIC] = {}
+        self.diodes: dict[str, Diode] = {}
 
     def counts(self) -> dict[str, int]:
         return {
             "mosfets": len(self.mosfets),
             "inductors": len(self.inductors),
             "capacitors": len(self.capacitors),
+            "gate_drivers": len(self.gate_drivers),
+            "controllers": len(self.controllers),
+            "diodes": len(self.diodes),
         }
 
 
@@ -47,6 +63,8 @@ def load_library(library_dir: Path | None = None) -> Library:
     for category, (model, filename) in _FILES.items():
         path = d / filename
         if not path.exists():
+            if category in ("gate_drivers", "controllers", "diodes"):
+                continue  # optional categories: populate as data is curated
             raise FileNotFoundError(f"Library file missing: {path}")
         with open(path, encoding="utf-8") as f:
             raw = yaml.safe_load(f) or {}

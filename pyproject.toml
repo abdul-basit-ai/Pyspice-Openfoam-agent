@@ -19,9 +19,11 @@ dependencies = [
     "pyvista>=0.44.0",
     "langgraph>=0.2.0",
     "langchain-core>=0.3.0",
+    "google-genai>=1.0.0",
     "streamlit>=1.36.0",
     "schemdraw>=0.18",
     "matplotlib>=3.8.0",
+    "pymoo>=0.6.0",
     "pytest>=8.0.0",
 ]
 

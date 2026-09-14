@@ -23,11 +23,19 @@ from pyspice_openfoam_agent.thermal.board import BoardGeometry
 AIR_ZONE = "air"
 BOARD_ZONE = "board"
 
-FINE_MM = 0.5      # device footprints + near field
+FINE_MM = 0.5      # device footprints + near field (Balanced preset default)
 MEDIUM_MM = 1.0    # 4-8 mm from any device
 COARSE_MM = 2.0    # farther than 8 mm
 NEAR_MARGIN_MM = 4.0
 MID_MARGIN_MM = 8.0
+
+# Mesh fidelity presets (user decision: Fast / Balanced / High fidelity).
+# Each preset scales the three resolution tiers + near-field margin.
+MESH_PRESETS = {
+    "fast":     {"fine": 1.0, "medium": 2.0, "coarse": 4.0, "near_margin": 3.0},
+    "balanced": {"fine": 0.5, "medium": 1.0, "coarse": 2.0, "near_margin": 4.0},
+    "high":     {"fine": 0.25, "medium": 0.5, "coarse": 1.0, "near_margin": 6.0},
+}
 
 
 class MeshPlanError(ValueError):
@@ -64,26 +72,33 @@ class MeshPlan:
         return len(self.blocks)
 
 
-def _cells_for(width_mm: float, proximity_mm: float) -> int:
+def _cells_for(width_mm: float, proximity_mm: float, preset: dict) -> int:
     """Cell count for one segment given its width and distance to the
     nearest device footprint."""
-    if proximity_mm <= NEAR_MARGIN_MM:
-        target = FINE_MM
-    elif proximity_mm <= MID_MARGIN_MM:
-        target = MEDIUM_MM
+    if proximity_mm <= preset["near_margin"]:
+        target = preset["fine"]
+    elif proximity_mm <= preset["near_margin"] * 2:
+        target = preset["medium"]
     else:
-        target = COARSE_MM
+        target = preset["coarse"]
     return max(2, round(width_mm / target))
 
 
 
-def plan_mesh(geo: BoardGeometry) -> MeshPlan:
+def plan_mesh(geo: BoardGeometry, fidelity: str = "balanced") -> MeshPlan:
     """Compute the global partitions and per-block zone assignment.
 
     Z-structure: [0, board_top] = board; then bands split at every distinct
     device top; a device occupies its footprint from the board top to ITS
     top only; everything else in every band is air.
+
+    fidelity: "fast" | "balanced" | "high" (mesh density preset; exposes
+    the accuracy-vs-runtime trade-off per the Phase 10 user-question policy).
     """
+    preset = MESH_PRESETS.get(fidelity)
+    if preset is None:
+        raise MeshPlanError(
+            f"unknown fidelity {fidelity!r} — choose from {sorted(MESH_PRESETS)}")
     # collect partition edges
     xs = {0.0, geo.length_mm}
     ys = {0.0, geo.width_mm}
@@ -110,11 +125,11 @@ def plan_mesh(geo: BoardGeometry) -> MeshPlan:
 
     # per-segment cell counts (x/y shared across all z layers: conformality)
     cells_x = [
-        _cells_for(x1 - x0, _segment_proximity_x(x0, x1, geo))
+        _cells_for(x1 - x0, _segment_proximity_x(x0, x1, geo), preset)
         for x0, x1 in zip(xs_edges, xs_edges[1:])
     ]
     cells_y = [
-        _cells_for(y1 - y0, _segment_proximity_y(y0, y1, geo))
+        _cells_for(y1 - y0, _segment_proximity_y(y0, y1, geo), preset)
         for y0, y1 in zip(ys_edges, ys_edges[1:])
     ]
     cells_z = [

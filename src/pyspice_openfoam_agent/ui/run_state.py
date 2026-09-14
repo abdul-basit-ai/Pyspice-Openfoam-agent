@@ -96,7 +96,8 @@ def _compact(summary: dict, limit: int = 40) -> dict:
             out[k] = {k2: (v2 if isinstance(v2, (int, float, str, bool)) else str(v2)[:60])
                       for k2, v2 in list(v.items())[:limit]}
         elif isinstance(v, list):
-            out[k] = v[:limit]
+            truncated = v[:limit]
+            out[k] = truncated + ([f"... {len(v) - limit} more"] if len(v) > limit else [])
         else:
             out[k] = str(v)[:100]
     return out

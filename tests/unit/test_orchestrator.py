@@ -1,8 +1,8 @@
-"""Phase 11 + 11a + 12 tests: orchestrator (mock Gemini), design memory, manifest.
+"""Phase 11 + 11a + 12 tests: orchestrator (mock LLM), design memory, manifest.
 
 User decision: always-LLM, recorded mocks in tests — the graph runs for real
 (LangGraph nodes, dispatch, memory writes) but `reason` replays scripted
-Gemini responses instead of calling the API.
+LLM responses instead of calling the API.
 """
 
 from __future__ import annotations
@@ -99,7 +99,7 @@ def test_manifest_rejects_missing_key() -> None:
         validate_manifest({"version": 1, "spec": {}, "status": "feasible"})
 
 
-# ---------- Phase 11: graph (mock Gemini) ----------
+# ---------- Phase 11: graph (mock LLM) ----------
 
 
 def _mock_size_then_stop():

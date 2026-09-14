@@ -2,14 +2,25 @@
 Results), sidebar spec input + run control.
 
 Run:  streamlit run ui/app.py   (inside the docker-agent container)
-The UI drives the orchestrator (mock or live Gemini per env) and polls the
-RunState JSON for live progress. Views read from ToolContext artifacts.
+The UI drives the orchestrator (scripted or live OpenRouter per env) and
+polls the RunState JSON for live progress. Views read from ToolContext
+artifacts.
+
+Audit fixes applied:
+- APP-1: runs are launched in a background thread so the UI stays responsive
+  and auto-refreshes to show live pipeline progress.
+- APP-2: existing-run dropdown filters to dirs containing state.json.
+- APP-3: missing metrics show "N/A", not 0.0%.
+- APP-5: removed dead _run_dir injection.
+- APP-6: renamed mock to "scripted (no LLM)" to set expectations.
+- APP-7: ripple_ratio exposed in the sidebar.
 """
 
 from __future__ import annotations
 
 import json
 import sys
+import threading
 from pathlib import Path
 
 # make src importable when running from the repo root
@@ -25,6 +36,30 @@ st.set_page_config(page_title="DC-DC Synthesizer", page_icon="⚡", layout="wide
 RUNS_DIR = REPO / "runs"
 
 
+# ---------------- helpers ----------------
+
+
+def _valid_runs() -> list[str]:
+    """Dirs in runs/ that contain a state.json (actual orchestrated runs)."""
+    if not RUNS_DIR.exists():
+        return []
+    return sorted(
+        [d.name for d in RUNS_DIR.iterdir()
+         if d.is_dir() and (d / "state.json").exists()],
+        reverse=True,
+    )
+
+
+def _fmt_metric(value, suffix: str = "", multiplier: float = 1.0) -> str:
+    """Format a metric for display; N/A if missing/None."""
+    if value is None:
+        return "N/A"
+    try:
+        return f"{float(value) * multiplier:.1f}{suffix}"
+    except (TypeError, ValueError):
+        return "N/A"
+
+
 # ---------------- sidebar ----------------
 
 
@@ -37,16 +72,22 @@ def sidebar() -> dict:
         iout = st.number_input("Iout (A)", 0.1, 50.0, 5.0, 0.5)
         fsw = st.number_input("f_sw (kHz)", 50.0, 1000.0, 500.0, 50.0)
         vrip_m = st.number_input("Vripple (mV)", 1.0, 500.0, 50.0, 5.0)
+        ripple_ratio = st.slider("Inductor ripple ratio", 0.10, 0.50, 0.30, 0.05,
+                                  help="Typical 0.2-0.4. Higher = smaller L, more ripple.")
         submitted = st.form_submit_button("Run design", use_container_width=True)
-    mode = st.sidebar.radio("LLM mode", ("mock", "live Gemini"), index=0,
-                            help="mock: scripted flow; live: real Gemini API (needs GEMINI_API_KEY)")
+    mode = st.sidebar.radio(
+        "LLM mode",
+        ("scripted (no LLM)", "OpenRouter (DeepSeek Flash)"),
+        index=0,
+        help="scripted: deterministic flow (no API); OpenRouter: live agent "
+             "(needs OPENROUTER_API_KEY)",
+    )
     existing = st.sidebar.selectbox(
         "Or view an existing run",
-        ["<new run>"] + sorted([d.name for d in RUNS_DIR.iterdir() if d.is_dir()],
-                               reverse=True) if RUNS_DIR.exists() else ["<new run>"],
+        ["<new run>"] + _valid_runs(),
     )
     task = {"Vin": vin, "Vout": vout, "Iout": iout, "fsw_khz": fsw,
-            "Vripple": vrip_m / 1000.0}
+            "Vripple": vrip_m / 1000.0, "ripple_ratio": ripple_ratio}
     if submitted:
         return {"action": "run", "task": task, "mode": mode}
     if existing != "<new run>":
@@ -64,7 +105,10 @@ def tab_pipeline(state: dict | None) -> None:
         return
     status = state.get("status", "?")
     color = {"done": "🟢", "running": "🟡", "error": "🔴"}.get(status, "⚪")
-    st.markdown(f"**Status:** {color} `{status}`  ·  step {state.get('step', 0)}/{state.get('max_steps', '?')}")
+    st.markdown(
+        f"**Status:** {color} `{status}`  ·  "
+        f"step {state.get('step', 0)}/{state.get('max_steps', '?')}"
+    )
     if state.get("error"):
         st.error(state["error"])
     history = state.get("history", [])
@@ -84,12 +128,11 @@ def tab_circuit(state: dict | None, artifacts: dict) -> None:
         return
     comps = artifacts["components"]
     sizing = artifacts.get("sizing", {})
-    task = state.get("task", {}) if state else {}
 
-    # schematic + waveforms are generated during run_spice (artifacts pointers)
     sch = artifacts.get("schematic_png")
     if sch and Path(sch).exists():
-        st.image(str(sch), caption=f"{sizing.get('topology', '?')} — {comps['mosfet']} / {comps['inductor']}")
+        st.image(str(sch),
+                 caption=f"{sizing.get('topology', '?')} — {comps['mosfet']} / {comps['inductor']}")
     else:
         st.caption("schematic appears after run_spice completes")
 
@@ -114,10 +157,10 @@ def tab_thermal(state: dict | None, artifacts: dict) -> None:
         cols = st.columns(len(tj))
         for col, (dev, t) in zip(cols, sorted(tj.items())):
             col.metric(dev, f"{t:.1f} °C")
-    limit = 150.0
-    if tj:
+        limit = 150.0
         worst = max(tj.values())
-        st.progress(min(worst / limit, 1.0), text=f"Tj_max {worst:.1f} / {limit:.0f} °C limit")
+        st.progress(min(worst / limit, 1.0),
+                     text=f"Tj_max {worst:.1f} / {limit:.0f} °C limit")
     png = artifacts.get("tj_png")
     if png and Path(png).exists():
         st.image(str(png), caption="Temperature field (solid regions)")
@@ -134,18 +177,48 @@ def tab_results(state: dict | None, artifacts: dict) -> None:
     if spice:
         st.subheader("Electrical")
         c1, c2, c3 = st.columns(3)
-        c1.metric("efficiency", f"{spice.get('efficiency', 0) * 100:.1f}%")
-        c2.metric("ripple", f"{spice.get('ripple_V', 0) * 1000:.1f} mV")
-        c3.metric("total loss", f"{spice.get('losses_W', 0):.2f} W")
+        eff = spice.get("efficiency")
+        c1.metric("efficiency", _fmt_metric(eff, "%", 100) if eff is not None else "N/A")
+        rip = spice.get("ripple_V")
+        c2.metric("ripple", _fmt_metric(rip, " mV", 1000) if rip is not None else "N/A")
+        loss = spice.get("losses_W")
+        c3.metric("total loss", _fmt_metric(loss, " W") if loss is not None else "N/A")
     thermal = artifacts.get("thermal")
     if thermal:
         st.subheader("Thermal")
         st.json(thermal.get("tj_per_device_C", {}))
-    # manifest download
-    manifest = artifacts.get("manifest_path")
-    if manifest and Path(manifest).exists():
-        st.download_button("Download manifest.json", Path(manifest).read_text(),
-                           file_name="manifest.json")
+
+
+# ---------------- background run ----------------
+
+
+def _run_in_background(task: dict, mode: str, run_id: str) -> None:
+    """Execute run_agent in a daemon thread so the UI stays responsive."""
+    from pyspice_openfoam_agent.orchestrator.graph import run_agent
+
+    run_dir = RUNS_DIR / run_id
+    try:
+        provider = {"scripted (no LLM)": "mock",
+                    "OpenRouter (DeepSeek Flash)": "openrouter"}[mode]
+        model = "deepseek/deepseek-v4-flash"
+        if provider == "mock":
+            mock = [
+                {"tool_calls": [{"name": "size_converter", "args": {
+                    "Vin": task["Vin"], "Vout": task["Vout"],
+                    "Iout": task["Iout"], "fsw_khz": task["fsw_khz"],
+                    "Vripple": task["Vripple"]}}]},
+                {"tool_calls": [{"name": "select_components", "args": {}}]},
+                {"tool_calls": [{"name": "build_netlist", "args": {}}]},
+                {"tool_calls": [{"name": "run_spice", "args": {}}]},
+                {"tool_calls": [{"name": "run_thermal", "args": {}}]},
+                {"done": True, "final": {"summary": "design complete"}},
+            ]
+            run_agent(task, run_dir, mock_responses=mock)
+        else:
+            run_agent(task, run_dir, model=model, provider=provider)
+    except Exception as e:
+        rs = RunState(run_dir)
+        rs.finish(None, error=str(e))
 
 
 # ---------------- main ----------------
@@ -153,49 +226,38 @@ def tab_results(state: dict | None, artifacts: dict) -> None:
 
 def main() -> None:
     action = sidebar()
-    run_state: RunState | None = None
     state = None
     run_id = None
 
     if action["action"] == "view":
         run_id = action["run_id"]
-        run_state = RunState(RUNS_DIR / run_id)
-        state = run_state.read()
+        st.session_state["active_run"] = run_id
+        state = RunState(RUNS_DIR / run_id).read()
     elif action["action"] == "run":
         import uuid
 
         run_id = f"run_{uuid.uuid4().hex[:8]}"
-        run_state = RunState(RUNS_DIR / run_id)
-        run_state.init(action["task"], max_steps=12)
-        # launch the orchestrator in mock or live mode
-        from pyspice_openfoam_agent.orchestrator.graph import run_agent
-
+        st.session_state["active_run"] = run_id  # survive reruns (audit fix)
+        run_dir = RUNS_DIR / run_id
+        rs = RunState(run_dir)
+        rs.init(action["task"], max_steps=12)
         st.toast(f"starting run {run_id} ({action['mode']} mode)")
-        try:
-            if action["mode"] == "mock":
-                mock = [
-                    {"tool_calls": [{"name": "size_converter", "args": {
-                        "Vin": action["task"]["Vin"], "Vout": action["task"]["Vout"],
-                        "Iout": action["task"]["Iout"], "fsw_khz": action["task"]["fsw_khz"],
-                        "Vripple": action["task"]["Vripple"]}}]},
-                    {"tool_calls": [{"name": "select_components", "args": {}}]},
-                    {"tool_calls": [{"name": "build_netlist", "args": {}}]},
-                    {"tool_calls": [{"name": "run_spice", "args": {}}]},
-                    {"tool_calls": [{"name": "run_thermal", "args": {}}]},
-                    {"done": True, "final": {"summary": "design complete"}},
-                ]
-                run_agent(action["task"], RUNS_DIR / run_id, mock_responses=mock)
-            else:
-                run_agent(action["task"], RUNS_DIR / run_id)
-            state = run_state.read()
-        except Exception as e:
-            run_state.finish(None, error=str(e))
-            state = run_state.read()
+        # APP-1 fix: launch in a background thread, poll state.json
+        t = threading.Thread(
+            target=_run_in_background,
+            args=(action["task"], action["mode"], run_id),
+            daemon=True,
+        )
+        t.start()
+
+    # on reruns (auto-refresh), recover the active run from session state
+    if run_id is None and st.session_state.get("active_run"):
+        run_id = st.session_state["active_run"]
 
     if run_id:
-        state = state or (run_state.read() if run_state else None)
-        if state:
-            state["_run_dir"] = str(RUNS_DIR / run_id)
+        sp = RUNS_DIR / run_id / "state.json"
+        if sp.exists():
+            state = RunState(RUNS_DIR / run_id).read()
 
     artifacts = (state or {}).get("artifacts", {})
     t1, t2, t3, t4 = st.tabs(["Pipeline", "Circuit", "Thermal", "Results"])
@@ -208,7 +270,8 @@ def main() -> None:
     with t4:
         tab_results(state, artifacts)
 
-    # auto-refresh while a run is live
+    # auto-refresh while a run is live (APP-1: now works because the run
+    # is in a background thread; the UI thread is free to rerun)
     if state and state.get("status") == "running":
         import time
 

@@ -1,0 +1,121 @@
+{
+  "records": {
+    "1230308979d7aa00": {
+      "attempts": [
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-13T19:49:10+00:00",
+          "outcome": {}
+        }
+      ],
+      "spec": {
+        "Iout": 5.0,
+        "Vin": 9.5,
+        "Vout": 5.0,
+        "Vripple": 0.05,
+        "fsw_khz": 500.0,
+        "ripple_ratio": 0.3
+      }
+    },
+    "48788d0bd7a19bb2": {
+      "attempts": [
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-13T15:04:18+00:00",
+          "outcome": {}
+        },
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-13T15:05:14+00:00",
+          "outcome": {}
+        },
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-13T15:35:41+00:00",
+          "outcome": {}
+        },
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-13T19:49:35+00:00",
+          "outcome": {}
+        },
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-13T19:49:53+00:00",
+          "outcome": {}
+        },
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-13T19:56:48+00:00",
+          "outcome": {}
+        }
+      ],
+      "spec": {
+        "Iout": 5.0,
+        "Vin": 12.0,
+        "Vout": 5.0,
+        "Vripple": 0.05,
+        "fsw_khz": 500.0,
+        "ripple_ratio": 0.3
+      }
+    },
+    "559edc504216994b": {
+      "attempts": [
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL1510-682ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-13T15:36:14+00:00",
+          "outcome": {}
+        },
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL1510-682ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-13T15:36:27+00:00",
+          "outcome": {}
+        }
+      ],
+      "spec": {
+        "Iout": 5.0,
+        "Vin": 12.0,
+        "Vout": 5.0,
+        "Vripple": 0.05,
+        "fsw_khz": 450.0,
+        "ripple_ratio": 0.3
+      }
+    }
+  }
+}

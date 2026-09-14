@@ -1,7 +1,7 @@
 """Phase 11: LangGraph ReAct orchestrator.
 
-Reason -> act -> observe loop over the Phase 11 tool layer, driven by Gemini
-function-calling (user decision: Gemini API; recorded mocks in tests so the
+Reason -> act -> observe loop over the Phase 11 tool layer, driven by an LLM
+function-calling via OpenRouter (user decision: OpenRouter API; recorded mocks in tests so the
 64-test suite stays free/deterministic — user decision: always-LLM, mocked
 in tests, no deterministic fallback).
 
@@ -11,7 +11,7 @@ artifacts pointers. Raw waveforms/logs never enter state.
 
 Graph shape:
   START -> reason -> (route) -> act -> observe -> reason ... -> END
-  reason: Gemini decides the next tool call from the transcript
+  reason: the LLM decides the next tool call from the transcript
   route:  tool_calls present? -> act : -> finalize
   act:    dispatch the requested tool(s)
   observe: append compact results to the transcript (merged into act node)
@@ -42,28 +42,13 @@ class OrchestratorError(RuntimeError):
 @dataclass
 class AgentConfig:
     run_dir: Path
-    model: str = "gemini-2.0-flash"
+    model: str = "deepseek/deepseek-v4-flash"
+    provider: str = "openrouter"  # OpenRouter is the sole LLM provider
     max_steps: int = 12
-    api_key_env: str = "GEMINI_API_KEY"
 
 
-def _gemini_client(model: str):
-    """Lazy import so the module works without the SDK installed in tests."""
-    try:
-        from google import genai
-    except ImportError as e:
-        raise OrchestratorError(
-            "google-genai SDK not installed — add it to the image or use mock mode"
-        ) from e
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise OrchestratorError(f"GEMINI_API_KEY not set in environment")
-    client = genai.Client(api_key=api_key)
-    return client
-
-
-def _gemini_tools() -> list[dict]:
-    """Convert our TOOL_SCHEMAS to Gemini function declarations."""
+def _openai_tools() -> list[dict]:
+    """Convert TOOL_SCHEMAS to OpenAI-style function declarations."""
     decls = []
     for t in TOOL_SCHEMAS:
         decls.append({"name": t["name"], "description": t["description"],
@@ -99,7 +84,7 @@ class AgentState(TypedDict):
 
 def make_graph(config: AgentConfig, ctx: ToolContext, client=None, mock_responses: list[dict] | None = None, run_state=None):
     """Build the agent graph. `client` and `mock_responses` are for tests:
-    mock mode replays the recorded responses instead of calling Gemini."""
+    mock mode replays the recorded responses instead of calling the LLM."""
     from langgraph.graph import END, StateGraph
 
     def reason(state: AgentState) -> dict:
@@ -111,8 +96,7 @@ def make_graph(config: AgentConfig, ctx: ToolContext, client=None, mock_response
                 return {"done": True}
             resp = mock_responses[step]
         else:
-            client_ = client or _gemini_client(config.model)
-            resp = _call_gemini(client_, config.model, state)
+            resp = _call_openrouter(config.model, state)
         calls = resp.get("tool_calls", [])
         return {"tool_calls": calls, "done": resp.get("done", False),
                 "final": resp.get("final")}
@@ -170,35 +154,80 @@ def make_graph(config: AgentConfig, ctx: ToolContext, client=None, mock_response
     return g.compile()
 
 
-def _call_gemini(client, model: str, state: AgentState) -> dict:
-    """One Gemini call -> {"tool_calls": [...], "done": bool, "final": {...}}."""
-    contents = [f"Task spec: {json.dumps(state['task'])}"]
+
+
+def _call_openrouter(model: str, state: AgentState) -> dict:
+    """One OpenRouter call (OpenAI-compatible, function calling).
+
+    Model examples: deepseek/deepseek-chat-v3.1:free, deepseek/deepseek-r1,
+    openai/gpt-4o-mini. API key from OPENROUTER_API_KEY."""
+    import urllib.request
+
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise OrchestratorError("OPENROUTER_API_KEY not set in environment")
+
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t["description"],
+                "parameters": t["parameters"],
+            },
+        }
+        for t in TOOL_SCHEMAS
+    ]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": f"Task spec: {json.dumps(state['task'])}"}]
     for m in state["transcript"]:
-        contents.append(f"{m['role']}({m.get('tool', '')}): {json.dumps(m.get('result', ''))[:2000]}")
-    resp = client.models.generate_content(
-        model=model,
-        contents="\n\n".join(contents),
-        config={"tools": _gemini_tools(), "system_instruction": SYSTEM_PROMPT},
+        messages.append({"role": "user",
+                         "content": f"{m.get('tool', m['role'])}: {json.dumps(m.get('result', ''))[:2000]}"})
+
+    import urllib.request
+
+    req = urllib.request.Request(
+        "https://openrouter.ai/api/v1/chat/completions",
+        data=json.dumps({
+            "model": model,
+            "messages": messages,
+            "tools": tools,
+        }).encode(),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
     )
+    with urllib.request.urlopen(req, timeout=120) as r:
+        body = json.loads(r.read())
+
+    msg = body["choices"][0]["message"]
     out: dict[str, Any] = {"tool_calls": [], "done": False, "final": None}
-    if resp.function_calls:
-        for fc in resp.function_calls:
-            out["tool_calls"].append({"name": fc.name, "args": dict(fc.args or {})})
-    elif resp.text:
+    for tc in msg.get("tool_calls") or []:
+        fn = tc["function"]
+        try:
+            args = json.loads(fn.get("arguments") or "{}")
+        except json.JSONDecodeError:
+            args = {}
+        out["tool_calls"].append({"name": fn["name"], "args": args})
+    if not out["tool_calls"] and msg.get("content"):
         out["done"] = True
-        out["final"] = {"summary": resp.text}
+        out["final"] = {"summary": msg["content"]}
     return out
 
 
 def run_agent(
     task_spec: dict,
     run_dir: str | Path,
-    model: str = "gemini-2.0-flash",
+    model: str = "deepseek/deepseek-v4-flash",
+    provider: str = "openrouter",
     max_steps: int = 12,
     mock_responses: list[dict] | None = None,
 ) -> dict:
     """Entry point: one orchestrated design run. Returns the final dict."""
-    config = AgentConfig(run_dir=Path(run_dir), model=model, max_steps=max_steps)
+    config = AgentConfig(run_dir=Path(run_dir), model=model, provider=provider,
+                         max_steps=max_steps)
     Path(run_dir).mkdir(parents=True, exist_ok=True)
     ctx = ToolContext(run_dir=Path(run_dir), library=load_library_or_raise())
     from pyspice_openfoam_agent.ui.run_state import RunState
