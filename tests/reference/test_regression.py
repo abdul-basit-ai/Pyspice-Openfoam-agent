@@ -1,6 +1,8 @@
 """Pytest entry for the Phase 13 regression suite (wraps regression.py)."""
 from __future__ import annotations
 
+import shutil
+
 import pytest
 
 from pyspice_openfoam_agent.library.loader import load_library
@@ -16,6 +18,8 @@ def lib():
 
 
 @pytest.mark.parametrize("ref", REFERENCES, ids=[r.name for r in REFERENCES])
+@pytest.mark.skipif(shutil.which("ngspice") is None,
+                    reason="ngspice binary not on PATH (lint stage requires it)")
 def test_reference_design(lib, ref, tmp_path):
     spec = Spec(**ref.spec_kwargs)
     sizing = size(spec)

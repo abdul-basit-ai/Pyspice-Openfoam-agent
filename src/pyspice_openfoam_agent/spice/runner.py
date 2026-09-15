@@ -20,21 +20,61 @@ path proven unsafe for this project's netlists.
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from PySpice.Spice.NgSpice.Shared import NgSpiceShared
+from PySpice.Spice.NgSpice.Shared import NgSpiceShared, NgSpiceCommandError
 
 from pyspice_openfoam_agent.spice.steady_state import SteadyStateResult, detect_steady_state
 
 _ANALYSIS_LINE_RE = re.compile(r"^\s*\.(op|tran)\b.*$", re.IGNORECASE | re.MULTILINE)
 _END_LINE_RE = re.compile(r"^\s*\.end\s*$", re.IGNORECASE | re.MULTILINE)
 
+# numpy<2 name (np.trapz) was removed in numpy 2; keep both supported since
+# losses.py already carries the same shim.
+_trapz = getattr(np, "trapezoid", np.trapz)
+
 
 class SimulationError(RuntimeError):
     """ngspice failed to run, or produced no usable result."""
+
+
+_NGSPICE_SINGLETON = None
+
+
+def _get_ngspice():
+    """One NgSpiceShared instance per process, created lazily.
+
+    PySpice 1.5 re-executes its whole ffi.cdef block on every new_instance()
+    call, so the SECOND instance in one process raises
+    cffi.CDefError ("duplicate declaration of struct ngcomplex") -- a fresh
+    instance per run crashes any multi-run process (the topology smoke runs
+    buck/boost/buck_boost back to back; the UI runs several designs in one
+    session). One reused instance is also cheaper: load_circuit() replaces
+    the circuit, and run_transient() removes the previous one first.
+    """
+    global _NGSPICE_SINGLETON
+    if _NGSPICE_SINGLETON is None:
+        if os.name == "nt":
+            # The ngspice DLL's own folder is NOT searched for its
+            # dependencies (sndfile.dll, samplerate.dll, libomp140.x86_64.dll)
+            # by the Windows loader unless it is on PATH. PySpice resolves the
+            # DLL inside its package tree, so add that folder to the
+            # process-local PATH before the first dlopen.
+            lib_path = getattr(NgSpiceShared, "LIBRARY_PATH", None)
+            if lib_path:
+                dll_dir = str(Path(lib_path).parent)
+                if Path(dll_dir).is_dir() and dll_dir not in os.environ.get("PATH", ""):
+                    os.environ["PATH"] = dll_dir + os.pathsep + os.environ.get("PATH", "")
+                try:
+                    os.add_dll_directory(dll_dir)
+                except (AttributeError, OSError):
+                    pass
+        _NGSPICE_SINGLETON = NgSpiceShared.new_instance()
+    return _NGSPICE_SINGLETON
 
 
 @dataclass
@@ -91,6 +131,22 @@ def _replace_analysis(netlist_text: str, tran_line: str) -> str:
     return text[:idx] + tran_line + "\n" + text[idx:]
 
 
+def _has_transient_plot(ngspice) -> bool:
+    """True when ngspice produced a transient plot with at least two time
+    samples (i.e. a completed analysis, not the constant-only placeholder)."""
+    try:
+        last = ngspice.last_plot
+    except Exception:
+        return False
+    if not last or last == "const":
+        return False
+    try:
+        plot = ngspice.plot(None, last)
+        return len(plot.to_analysis().time) >= 2
+    except Exception:
+        return False
+
+
 def run_transient(
     netlist_text: str,
     fsw: float,
@@ -99,21 +155,39 @@ def run_transient(
 ) -> TransientResult:
     """Run one ngspice .tran over `n_cycles` switching periods, from t=0.
 
-    Each call spins up a fresh ngspice instance and simulates from t=0 --
-    there is no "resume from where the last call left off". The
-    steady-state loop below (`run_until_steady_state`) handles "not long
-    enough" by calling this again with a larger `n_cycles`, which re-runs
-    from scratch rather than resuming; that costs some wasted simulation
-    time but keeps this function's contract simple, stateless, and easy to
-    unit test.
+    Every call re-loads the circuit into the process-wide ngspice instance
+    and simulates from t=0 -- there is no "resume from where the last call
+    left off". The steady-state loop below (`run_until_steady_state`)
+    handles "not long enough" by calling this again with a larger
+    `n_cycles`, which re-runs from scratch rather than resuming; that costs
+    some wasted simulation time but keeps this function's contract simple,
+    stateless, and easy to unit test.
     """
     tran_line = build_tran_line(fsw, n_cycles, points_per_cycle)
     text = _replace_analysis(netlist_text, tran_line)
 
-    ngspice = NgSpiceShared.new_instance()
+    ngspice = _get_ngspice()
     try:
+        # load_circuit() calls ngSpice_Circ without removing the previous
+        # circuit; on a reused instance that stacks circuits and "run" can
+        # pick the wrong one. Drop whatever is loaded first (the very first
+        # call legitimately has nothing loaded and ngspice only warns).
+        try:
+            ngspice.remove_circuit()
+        except Exception:
+            pass
         ngspice.load_circuit(text)
-        ngspice.run()
+        try:
+            ngspice.run()
+        except NgSpiceCommandError as e:
+            # ngspice >= 44 prints benign "Note: <source>: dc value used for
+            # op instead of transient time=0 value." lines on stderr for
+            # PULSE sources that also carry a DC value; PySpice flags every
+            # non-Warning stderr line as a command failure even though the
+            # transient completed. Accept the run if a real transient plot
+            # with data was produced; fail only when there is nothing to read.
+            if not _has_transient_plot(ngspice):
+                raise SimulationError(f"ngspice transient run failed: {e}") from e
     except Exception as e:  # PySpice raises a bare NgSpiceCommandError on any ngspice-side failure
         raise SimulationError(f"ngspice transient run failed: {e}") from e
 
@@ -382,9 +456,9 @@ def measure_efficiency(
 
     # <P_in> = Vin * |mean(i_in)|  -- mean of a single-polarity signal; the
     # magnitude handles ngspice's 'current into source' sign convention.
-    i_mean = np.trapz(i_in_w, t_w) / duration
+    i_mean = _trapz(i_in_w, t_w) / duration
     p_in_avg = vin * abs(i_mean)
-    p_out_avg = np.trapz(v_out_w**2, t_w) / duration / r_load
+    p_out_avg = _trapz(v_out_w**2, t_w) / duration / r_load
     if p_in_avg <= 0:
         raise ValueError(
             f"Non-positive average input power ({p_in_avg:.3g} W) -- check "

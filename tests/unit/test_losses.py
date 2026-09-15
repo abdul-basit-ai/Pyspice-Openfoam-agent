@@ -204,4 +204,4 @@ def test_boost_now_supported() -> None:
                         topology="boost", settle_time=0)
     # topology-aware: inductor spans in0->sw (boost), switch level_hi = vout
     assert lb.losses.total >= 0.0
-    assert "boost" in lb.notes[-1]
+    assert any("boost" in n for n in lb.notes), lb.notes

@@ -39,8 +39,8 @@ def solved_case():
     geo = build_board_geometry(lib.mosfets["BSC014N04LS"])
     # Phase 5 loss values (verified earlier: ~2.6W total)
     power = {"hs_mosfet": 1.30, "ls_mosfet": 1.30, "inductor": 0.04}
-    cp = build_case(geo, power, "runs/phase8_test", v_in_m_s=1.0)
-    run_mesh_pipeline(cp.root)
+    cp = build_case(geo, power, "runs/phase8_test")
+    run_mesh_pipeline(cp.root, v_in_m_s=1.0)
     result = run_cht_solve(cp, end_time=100, timeout_s=600)
     return result
 

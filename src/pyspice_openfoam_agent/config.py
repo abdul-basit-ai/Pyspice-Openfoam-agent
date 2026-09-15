@@ -16,7 +16,7 @@ class Settings(BaseModel):
 
     # OpenFOAM executable commands
     BLOCK_MESH_BIN: str = "blockMesh"
-    SOLVER_BIN: str = "chtMultiRegionFoam"
+    SOLVER_BIN: str = "chtMultiRegionSimpleFoam"  # the multi-region SIMPLE solver actually invoked
 
     # Simulation defaults
     DEFAULT_AMBIENT_TEMP_K: float = 298.15  # 25 °C

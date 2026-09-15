@@ -37,10 +37,10 @@ class LayoutError(ValueError):
 
 
 # --- JEDEC JESD51-3 constants (not tunable; comparability is the point) ---
-BOARD_LENGTH_MM = 114.0  # x (airflow direction)
-BOARD_WIDTH_MM = 76.0  # y
+BOARD_LENGTH_MM = 114.3  # x (airflow direction) — JESD51-3: 114.3 mm (4.5 in)
+BOARD_WIDTH_MM = 76.2  # y — JESD51-3: 76.2 mm (3.0 in)
 BOARD_THICKNESS_MM = 1.6  # FR4
-TOP_COPPER_UM = 70.0  # >= 50 um per JESD51-3
+TOP_COPPER_UM = 70.0  # >= 50 um per JESD51-3 (2 oz)
 AMBIENT_TEMP_C = 25.0  # JEDEC still-air reference ambient
 
 # --- fluid domain envelope (wind tunnel), fixed constants ---
@@ -99,21 +99,22 @@ class BoardGeometry:
 
 def _place_row(
     devices: list[tuple[str, float, float, float]],  # (tag, dx_mm, dy_mm, height_mm)
-    board_width_mm: float,
+    board_width_mm: float = BOARD_WIDTH_MM,
+    board_length_mm: float = BOARD_LENGTH_MM,
 ) -> dict[str, DeviceZone]:
     """Place devices in a row along x at LAYOUT_BASELINE_X_MM, sharing the
     board's y centerline; verify the row fits the board."""
     zones: dict[str, DeviceZone] = {}
     x = LAYOUT_BASELINE_X_MM
-    y_center = BOARD_WIDTH_MM / 2.0
+    y_center = board_width_mm / 2.0
     for tag, dx, dy, height in devices:
-        if x + dx > BOARD_LENGTH_MM:
+        if x + dx > board_length_mm:
             raise LayoutError(
                 f"device row exceeds board length: {tag} would end at {x + dx:.1f} mm "
-                f"> {BOARD_LENGTH_MM:.0f} mm"
+                f"> {board_length_mm:.0f} mm"
             )
-        if dy > BOARD_WIDTH_MM:
-            raise LayoutError(f"{tag} width {dy} mm exceeds board width {BOARD_WIDTH_MM}")
+        if dy > board_width_mm:
+            raise LayoutError(f"{tag} width {dy} mm exceeds board width {board_width_mm}")
         zones[tag] = DeviceZone(
             tag=tag,
             x_min=round(x, 4),
@@ -138,7 +139,7 @@ def build_board_geometry(
     Both switches share the selected MOSFET's die footprint (Phase 5 tags
     them as separate heat sources even when the part number matches). The
     inductor's footprint comes from its package size -- the caller passes
-    nominal catalog dims (defaults: 10x12mm for the 1010-class parts the
+    nominal catalog dims (defaults: 12x12 mm for the 1010-class parts the
     selector picks at these currents); they are parameters, not library
     fields, because Phase 1 deliberately didn't carry inductor footprints.
     """

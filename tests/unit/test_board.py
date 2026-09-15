@@ -42,7 +42,8 @@ def _zones_in_board_order(geo: BoardGeometry) -> list[DeviceZone]:
 
 
 def test_jedec_constants_are_the_standard() -> None:
-    assert (BOARD_LENGTH_MM, BOARD_WIDTH_MM) == (114.0, 76.0)
+    # JESD51-3 low-K board is 4.5" x 3" = 114.3 x 76.2 mm
+    assert (BOARD_LENGTH_MM, BOARD_WIDTH_MM) == (114.3, 76.2)
     assert BOARD_THICKNESS_MM == 1.6
     assert TOP_COPPER_UM >= 50.0
 

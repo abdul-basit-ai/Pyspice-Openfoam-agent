@@ -9,8 +9,9 @@ real DCR/ESR parasitics). Per-device, per steady-state period:
   P_l_dcr    = <i_L² * DCR> (continuous)
   P_sw_hs    = ½*Vblock*I*(t_r+t_f)*fsw  +  ½*Coss*Vblock²*fsw
                (hard-switch crossover + output-capacitance, HS only)
-  P_sw_ls    = 2*V_F*i_L*t_dead*fsw  +  Qrr*Vblock*fsw
-               (body-diode dead-time conduction + reverse recovery, LS only)
+  P_sw_ls    = V_F*i_L*3*t_dead*fsw  +  Qrr*Vblock*fsw
+               (body-diode conduction over the 3 dead-time windows/period the
+               gate phasing opens + reverse recovery, LS only)
   P_gate     = Qg * V_driver * fsw per driven switch
 
 HS and LS switching are DECOUPLED (correct physics): the HS switch is the
@@ -50,10 +51,19 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from pyspice_openfoam_agent.library.schema import MOSFET
+from pyspice_openfoam_agent.netlist.builder import GATE_DRIVE_R, GATE_DRIVE_V, dead_time_for
 from pyspice_openfoam_agent.spice.runner import TransientResult
 
-GATE_DRIVE_V = 5.0  # matches Phase 3 netlists' PULSE high level
-GATE_DRIVE_R = 2.0  # ohm, typical controller gate-drive resistance
+__all__ = [
+    "GATE_DRIVE_V",
+    "GATE_DRIVE_R",
+    "DeviceLosses",
+    "LossBreakdown",
+    "LossExtractionError",
+    "crossover_time",
+    "efficiency_from_losses",
+    "extract_losses",
+]
 
 # numpy compat: np.trapz was renamed np.trapezoid in numpy 2.0. The project
 # pins numpy<2.0 (trapz), but keep a shim so a future pin relax doesn't break.
@@ -124,15 +134,19 @@ def efficiency_from_losses(
     return float(eta)
 
 
-def _crossover_time(mosfet: MOSFET) -> float:
+def crossover_time(mosfet: MOSFET) -> float:
     """First-order crossover time (t_r or t_f) from the Miller plateau:
     the driver delivers Qgd at I_gate = (V_driver - V_plateau) / R_gate.
     Clamped to a physically plausible 1..200 ns band for the library's
-    silicon parts.
+    silicon parts. (Public: shared with the reduced-order electro-thermal
+    tier so the two loss models cannot silently diverge.)
     """
     i_gate = (GATE_DRIVE_V - mosfet.V_plateau) / GATE_DRIVE_R
     t_cross = mosfet.Qgd / i_gate
     return float(np.clip(t_cross, 1e-9, 200e-9))
+
+
+_crossover_time = crossover_time  # internal historical name
 
 
 def _recover_inductor_current(
@@ -184,25 +198,38 @@ def _masked_mean_power(t: np.ndarray, p_instant: np.ndarray, mask: np.ndarray) -
 
 
 def _switch_masks(
-    v_sw: np.ndarray, level_hi: float, steady_mask: np.ndarray
+    v_sw: np.ndarray, level_hi: float, steady_mask: np.ndarray, topology: str
 ) -> tuple[np.ndarray, np.ndarray]:
-    """HS-ON / LS-ON masks from the switch-node waveform. The switch node
-    swings between two levels: the 'on' (charging) switch clamps it near the
-    low/input rail, the 'off' (sync) switch clamps it near the high/output
-    rail. Which voltage each corresponds to is topology-dependent, so the
-    caller passes the HIGH rail level:
+    """(hard_on, sync_on) masks from the switch-node waveform, where 'hard' is
+    the HARD-SWITCHING control device and 'sync' the synchronous rectifier.
+    Which rail each corresponds to is topology-dependent, so the caller passes
+    the HIGH rail level:
 
-      - buck:       sw in {0, Vin}   -> HS on = sw~Vin,  LS on = sw~0
-      - boost:      sw in {0, Vout}  -> ctrl on = sw~0,   sync on = sw~Vout
-      - buck_boost: sw_a in {0, Vin} -> HS on = sw_a~Vin, LS_A on = sw_a~0
-                    (the sw_b rail is the output side; only sw_a is thresholded
-                     here for the two left switches — see extract_losses)
-    Mid-level (transition) samples count as neither — ideal switches have
-    zero-duration transitions, so no Ron conduction is charged during crossover.
+      - buck:       sw in {0, Vin}    -> hard(HS) on = sw~Vin,  sync(LS) on = sw~0
+      - boost:      sw in {0, Vout}   -> hard(ctrl) on = sw~0,  sync on = sw~Vout
+      - buck_boost: sw_a in {0, Vin}  -> charge phase (HS+LS_B) = sw_a~Vin,
+                    discharge phase (LS_A+SYNC) = sw_a~0
+
+    Dead-time intervals are EXCLUDED from both masks: the body diode clamps
+    the node ~0.7 V BEYOND the rail (buck/buck_boost low gap: sw ~ -0.7 V;
+    boost/buck_boost high gap: sw ~ rail + 0.7 V), and those samples belong
+    to the explicit body-diode loss term, not to Ron conduction (audit fix:
+    they were double-counted before). Mid-level (transition) samples count as
+    neither — ideal switches have zero-duration transitions.
     """
-    hs_on = steady_mask & (v_sw > 0.7 * level_hi)
-    ls_on = steady_mask & (v_sw < 0.3 * level_hi)
-    return hs_on, ls_on
+    if topology == "buck":
+        hard_on = steady_mask & (v_sw > 0.7 * level_hi) & (v_sw < level_hi + 0.35)
+        sync_on = steady_mask & (v_sw > -0.35) & (v_sw < 0.3 * level_hi)
+    elif topology == "boost":
+        # ctrl (the hard switcher) conducts with sw clamped to ~0; the sync
+        # switch conducts with sw at ~Vout. Masks were previously swapped
+        # (audit fix): hs/l conduction went to the wrong physical die.
+        hard_on = steady_mask & (v_sw < 0.3 * level_hi)
+        sync_on = steady_mask & (v_sw > 0.7 * level_hi) & (v_sw < level_hi + 0.35)
+    else:  # buck_boost (left switch node sw_a)
+        hard_on = steady_mask & (v_sw > 0.7 * level_hi) & (v_sw < level_hi + 0.35)
+        sync_on = steady_mask & (v_sw > -0.35) & (v_sw < 0.3 * level_hi)
+    return hard_on, sync_on
 
 
 def extract_losses(
@@ -223,17 +250,23 @@ def extract_losses(
     Topology-aware since Phase 3's builders emit different node wiring:
 
       - buck:       L spans sw->out; HS/LS blocked cap = Vin; tags hs/ls
-      - boost:      L spans in->sw;  ctrl/sync blocked cap = Vout; tags
-                    ctrl->hs/sync->ls
-      - buck_boost: 4 switches; the two left (HS/LS_A) carve sw_a in {0,Vin},
-                    blocked cap = Vin+Vout; the two right (SYNC/LS_B) sit on
-                    the sw_b/output rail. Reported as hs/ls for the left pair
-                    (the dominant loss contributors) with the right pair
-                    lumped into the same tags.
+      - boost:      L spans in->sw;  ctrl/sync blocked cap = Vout; the ctrl
+                    (hard-switching) device maps to the hs tag, sync -> ls
+      - buck_boost: 4-switch non-inverting; L+DCR span sw_a->sw_b. The charge
+                    phase (HS+LS_B, sw_a~Vin) and discharge phase (LS_A+SYNC,
+                    sw_a~0) each carry i_L through TWO series switches, so
+                    each phase's conduction integral is doubled. Blocked cap
+                    = max(Vin, Vout) (left pair blocks Vin, right pair Vout).
     """
     _topologies = {"buck", "boost", "buck_boost"}
     if topology not in _topologies:
         raise LossExtractionError(f"loss extraction supports {_topologies}, got {topology!r}")
+    if settle_time is None:
+        raise LossExtractionError(
+            "transient never reached steady state (detector returned no cycle "
+            "time) — rerun with more cycles or investigate; losses over a "
+            "non-settled window are meaningless"
+        )
     try:
         t = result.time
     except KeyError as e:
@@ -255,9 +288,9 @@ def extract_losses(
         level_hi = vout                           # sw swings {0, Vout}
         v_block = vout
     else:  # buck_boost
-        v_sw, v_lb = result["sw_a"], result["sw_b"]  # L spans sw_a -> sw_b
+        v_sw, v_lb = result["sw_a"], result["sw_b"]  # L+DCR span sw_a -> sw_b
         level_hi = vin                            # sw_a swings {0, Vin}
-        v_block = vin + vout
+        v_block = max(vin, vout)                  # left pair blocks Vin, right Vout
 
     # Recover i_L over the FULL run first: the ODE initial condition i(0)=0
     # is only valid at the true simulation start (Phase 4 always starts from
@@ -275,39 +308,60 @@ def extract_losses(
     t = t[steady_mask]
     v_sw = v_sw[steady_mask]
 
-    hs_on, ls_on = _switch_masks(v_sw, level_hi, np.ones_like(t, dtype=bool))
+    hs_on, ls_on = _switch_masks(v_sw, level_hi, np.ones_like(t, dtype=bool), topology)
     ron = mosfet.Rds_on
 
-    p_hs_cond = _masked_mean_power(t, i_l**2 * ron, hs_on)
-    p_ls_cond = _masked_mean_power(t, i_l**2 * ron, ls_on)
+    # buck_boost: each phase carries i_L through TWO series switches
+    # (charge: HS+LS_B; discharge: LS_A+SYNC), so each phase's conduction
+    # integral counts two dies (audit fix: was 2x undercounted).
+    n_series = 2.0 if topology == "buck_boost" else 1.0
+    p_hs_cond = n_series * _masked_mean_power(t, i_l**2 * ron, hs_on)
+    p_ls_cond = n_series * _masked_mean_power(t, i_l**2 * ron, ls_on)
     p_dcr = _masked_mean_power(t, i_l**2 * inductor_dcr, np.ones_like(t, dtype=bool))
 
     # --- switching loss: DECOUPLED HS vs LS mechanisms (task C) ---
     # HS: hard-switching crossover + output-capacitance (Coss) charge/discharge.
-    i_window = np.abs(i_l)
-    i_event = float(np.mean(i_window))
+    # The through-current at each event is the inductor RIPPLE ENDPOINT, not
+    # the window mean: the HS turns ON at the valley (i_L minimum) and OFF at
+    # the peak (i_L maximum) in CCM for every supported topology (audit fix:
+    # mean |i_L| biased crossover loss toward the average instead of the
+    # actual commutation currents).
+    i_on = float(np.min(i_l))   # valley at HS turn-on
+    i_off = float(np.max(i_l))  # peak at HS turn-off
     t_r = _crossover_time(mosfet)
     t_f = t_r  # symmetric first-order model; t_r+t_f = 2*t_cross
-    p_sw_hs = (0.5 * v_block * i_event * (t_r + t_f)) * fsw
+    p_sw_hs = 0.5 * v_block * (abs(i_on) + abs(i_off)) * t_r * fsw
     # Coss energy: E_oss ~ 0.5*Coss*V_block^2, paid once per hard turn-on cycle.
-    # Default to a typical silicon figure if Coss is unmeasured.
-    coss = mosfet.Coss if mosfet.Coss else 500e-12
-    e_oss = 0.5 * coss * v_block**2
-    p_oss = e_oss * fsw
+    # Only counted when the part's Coss is actually in the library — a
+    # fabricated generic value would silently invent switching loss (audit
+    # fix: the old 500 pF default fabricated a number no datasheet gave).
+    coss_notes: list[str] = []
+    if mosfet.Coss and mosfet.Coss > 0:
+        p_oss = 0.5 * mosfet.Coss * v_block**2 * fsw
+    else:
+        p_oss = 0.0
+        coss_notes.append("Coss not in library — output-capacitance loss term omitted")
     p_hs_switching = p_sw_hs + p_oss  # hard-switch + output-capacitance loss
 
     # LS (synchronous rectifier): near-ZERO hard-switching crossover (it turns
     # on with ~0 V across it after dead time). Its losses are body-diode
     # conduction during dead time + reverse recovery (Qrr):
-    import pyspice_openfoam_agent.netlist.builder as _nb
-
-    t_dead = getattr(_nb, "_DEAD_TIME_DEFAULT_S", 30e-9)
-    p_ls_diode = 2.0 * mosfet.V_F * abs(i_event) * t_dead * fsw  # 2 transitions/cycle
+    # Every builder's gate phasing opens THREE dead-time windows per period
+    # (2*td after the hard switch turns off + td before the period wraps), and
+    # the body diode freewheels the inductor current through all of them. The
+    # dead time comes from the SAME builder function the netlist was generated
+    # with, so the loss model can never drift from the simulated gate timing
+    # (audit fix: stale getattr default).
+    t_dead = dead_time_for(mosfet)
+    p_ls_diode = mosfet.V_F * abs(i_on + i_off) / 2.0 * 3.0 * t_dead * fsw
     qrr = mosfet.Qrr if mosfet.Qrr else 0.0
     p_ls_rr = qrr * v_block * fsw
     p_ls_switching = p_ls_diode + p_ls_rr  # body-diode + reverse-recovery
 
-    p_gate = 2.0 * mosfet.Qg * GATE_DRIVE_V * fsw  # both switches' drivers
+    # Gate-drive loss: one driver per driven switch — 2 for buck/boost,
+    # 4 for the 4-switch buck_boost (audit fix).
+    n_drivers = 4.0 if topology == "buck_boost" else 2.0
+    p_gate = n_drivers * mosfet.Qg * GATE_DRIVE_V * fsw
 
     dl = DeviceLosses(
         hs_conduction=p_hs_cond,
@@ -321,17 +375,35 @@ def extract_losses(
     notes = [
         f"crossover t_r = t_f = {t_r * 1e9:.1f} ns (from Qgd={mosfet.Qgd * 1e9:.1f} nC, "
         f"V_plateau={mosfet.V_plateau} V, R_gate={GATE_DRIVE_R} ohm)",
-        f"event current = mean |i_L| = {i_event:.2f} A over the steady-state window",
-        "synchronous-only accounting (no body-diode term) per project decision",
+        f"event currents: valley {i_on:.2f} A (turn-on), peak {i_off:.2f} A (turn-off) "
+        f"over the steady-state window",
+        f"dead time {t_dead * 1e9:.0f} ns x 3 windows/period (netlist gate phasing)",
         f"blocking voltage {v_block:.1f} V ({topology}); switch node swings to "
         f"{'Vin' if topology=='buck' else vout if topology=='boost' else 'Vin (left pair)'}",
     ]
+    notes.extend(coss_notes)
+    if topology == "buck_boost":
+        notes.append(
+            "4-switch topology: each phase's conduction counted for its two series "
+            "switches; thermal zones split total MOSFET heat evenly (2 zones, 4 dies)"
+        )
 
-    per_device = {
-        "hs_mosfet": dl.hs_conduction + dl.hs_switching + dl.gate_drive / 2,
-        "ls_mosfet": dl.ls_conduction + dl.ls_switching + dl.gate_drive / 2,
-        "inductor": dl.inductor_dcr,
-    }
+    # Thermal heat zones. buck/buck_boost: the two zones represent the switch
+    # pair; for buck_boost the 4 dies are split across the 2 available zones
+    # with the TOTAL preserved (conduction split evenly — see note above).
+    if topology == "buck_boost":
+        half_cond = (dl.hs_conduction + dl.ls_conduction) / 2.0
+        per_device = {
+            "hs_mosfet": half_cond + dl.hs_switching + dl.gate_drive / 2,
+            "ls_mosfet": half_cond + dl.ls_switching + dl.gate_drive / 2,
+            "inductor": dl.inductor_dcr,
+        }
+    else:
+        per_device = {
+            "hs_mosfet": dl.hs_conduction + dl.hs_switching + dl.gate_drive / 2,
+            "ls_mosfet": dl.ls_conduction + dl.ls_switching + dl.gate_drive / 2,
+            "inductor": dl.inductor_dcr,
+        }
     return LossBreakdown(
         losses=dl,
         per_device_watts=per_device,

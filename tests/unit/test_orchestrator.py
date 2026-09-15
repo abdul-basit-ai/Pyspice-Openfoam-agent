@@ -167,15 +167,23 @@ def test_graph_max_steps_guard(run_dir) -> None:
 
 
 def test_memory_written_by_finalize(run_dir) -> None:
-    """Phase 11a: finalize records the outcome into design memory."""
+    """Phase 11a: finalize records the outcome into design memory — but ONLY
+    when a thermal outcome exists (audit fix: sizing-only runs used to append
+    `"outcome": {}` noise that read_design_memory fed to the LLM as hits)."""
     config = AgentConfig(run_dir=run_dir, max_steps=6)
     ctx = ToolContext(run_dir=run_dir, library=load_library())
     graph = make_graph(config, ctx, mock_responses=_mock_size_then_stop())
     state = {"task": {"Vin": 12, "Vout": 5}, "transcript": [], "tool_calls": [],
              "step": 0, "done": False, "final": None, "error": None}
     graph.invoke(state)
-    # run_dir is tmp; DesignMemory anchors at parent.parent — use the same
-    # resolution as the store to find the file
     mem = DesignMemory(run_dir)
+    # sizing-only run: NO thermal outcome -> nothing recorded
+    assert mem.lookup(12, 5, 5, 500) == []
+
+    # a run with a thermal outcome IS recorded
+    ctx.artifacts["thermal"] = {"converged": True, "tj_per_device_C": {"hs_mosfet": 40.0},
+                                "v_in_m_s": 1.0, "validation": {}, "tj_max_k": 313.15}
+    graph.invoke(state)
     hits = mem.lookup(12, 5, 5, 500)
     assert len(hits) == 1  # finalize wrote the attempt
+    assert hits[0]["outcome"]["converged"] is True

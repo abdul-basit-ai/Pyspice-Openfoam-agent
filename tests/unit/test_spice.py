@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 
 from pyspice_openfoam_agent.library.loader import load_library
-from pyspice_openfoam_agent.netlist.builder import build_netlist
+from pyspice_openfoam_agent.netlist.builder import build_netlist, suggested_charge_trim
 from pyspice_openfoam_agent.netlist.selector import select_components
 from pyspice_openfoam_agent.sizing.engine import Spec, size
 from pyspice_openfoam_agent.spice.runner import (
@@ -41,7 +41,7 @@ def _ngspice_works() -> bool:
     try:
         run_transient(".title t\nV1 a 0 DC 1\nR1 a 0 1k\n.end\n", fsw=1e6, n_cycles=1)
         return True
-    except SimulationError:
+    except Exception:  # noqa: BLE001 — any load/instantiation failure means "not usable here"
         return False
 
 
@@ -55,7 +55,10 @@ def buck_netlist_text() -> str:
     spec = Spec(**PUBLISHED)
     sizing = size(spec)
     sel = select_components(lib, spec, sizing)
-    return build_netlist(spec, sizing, sel)
+    # Duty-compensated like the tool path: hold the open-loop rig at the
+    # design point despite static drops (dead-time diode clamp, DCR, Ron).
+    trim = suggested_charge_trim(spec, sizing, sel)
+    return build_netlist(spec, sizing, sel, charge_trim=trim)
 
 
 # ---------- the checkpoint itself ----------

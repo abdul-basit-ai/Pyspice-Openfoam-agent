@@ -124,8 +124,11 @@ def make_graph(config: AgentConfig, ctx: ToolContext, client=None, mock_response
     def finalize(state: AgentState) -> dict:
         final = dict(state.get("final") or {})
         final.setdefault("artifacts", ctx.artifacts if ctx else {})
-        # record design memory (Phase 11a)
-        if ctx and ctx.spec:
+        # record design memory (Phase 11a). Only runs that produced a thermal
+        # outcome are recorded: the old path appended every run unconditionally,
+        # so the store accumulated `"outcome": {}` noise entries that
+        # read_design_memory then fed to the LLM as "hits" (audit finding).
+        if ctx and ctx.spec and ctx.artifacts.get("thermal"):
             try:
                 from pyspice_openfoam_agent.orchestrator.memory.design_memory import DesignMemory
 

@@ -243,6 +243,36 @@
         "ripple_ratio": 0.3
       }
     },
+    "4dc60cd5b371fa87": {
+      "attempts": [
+        {
+          "best_config": {
+            "capacitor": "EEF-CD1E221P",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-15T11:43:45+00:00",
+          "outcome": {
+            "converged": true,
+            "tj_per_device_C": {
+              "board": 35.11,
+              "hs_mosfet": 35.3,
+              "inductor": 31.88,
+              "ls_mosfet": 34.76
+            },
+            "v_in_m_s": 1.0
+          }
+        }
+      ],
+      "spec": {
+        "Iout": 5.0,
+        "Vin": 4.0,
+        "Vout": 8.5,
+        "Vripple": 0.05,
+        "fsw_khz": 600.0,
+        "ripple_ratio": 0.3
+      }
+    },
     "559edc504216994b": {
       "attempts": [
         {

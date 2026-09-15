@@ -56,7 +56,7 @@ def reduced_order_tj(
     p_loss_w: float,
     r_theta_ja: float,
     v_in_m_s: float,
-    ambient_c: float = 27.0,
+    ambient_c: float = 25.0,
     airflow_ref_m_s: float = 1.0,
     airflow_effect: float = 0.35,
 ) -> float:
@@ -65,27 +65,37 @@ def reduced_order_tj(
     R_theta_eff = R_theta_ja scaled by airflow: forced air at the reference
     speed reduces the still-air R_theta by `airflow_effect`; more airflow
     helps with diminishing returns (square-root law, standard for forced
-    convection over flat plates).
+    convection over flat plates). Ambient defaults to 25 degC — the same
+    JESD51 reference the CHT tier uses (the old 27 degC default made the two
+    thermal tiers disagree by 2 K for identical inputs, audit fix).
     """
     scale = 1.0 - airflow_effect * ((v_in_m_s / airflow_ref_m_s) ** 0.5)
     scale = max(scale, 0.3)  # physical floor: airflow never reduces R by >70%
-    return ambient_c + p_loss_w * r_theta_ja * scale
+    return ambient_c + max(p_loss_w, 0.0) * r_theta_ja * scale
 
 
 def reduced_order_losses(
-    mosfet: MOSFET, iout: float, fsw_hz: float, tj_c: float = 27.0
+    mosfet: MOSFET, iout: float, fsw_hz: float, tj_c: float = 25.0,
+    v_block: float | None = None, conduction_factor: float = 1.0,
 ) -> tuple[float, float]:
     """Crude (loss, efficiency) pair: conduction + switching + gate.
 
     Deterministic first-order model — the same physics as Phase 5's
     analytical screening, reused here for speed.
+
+    `v_block` is the topology's actual blocking voltage (buck: Vin; boost:
+    Vout; buck-boost: max) and `conduction_factor` the duty-weighted HS+LS
+    factor from thermal.electro_thermal.conduction_factor(). The old version
+    pinned Vds at 12 V and used a blanket 1.5x conduction factor for every
+    topology, so the optimizer ranked e.g. 48 V designs on 12 V switching
+    loss (audit fix).
     """
     rds = mosfet.rds_on_at(tj_c)
-    p_cond = iout ** 2 * rds * 1.5  # HS+LS conduction, 1.5 = RMS/duty factor
+    p_cond = iout ** 2 * rds * conduction_factor
     # switching: 0.5 * V * I * (tr+tf) * fsw with crossover from Qgd
     i_gate = (5.0 - mosfet.V_plateau) / 2.0
     t_cross = mosfet.Qgd / max(i_gate, 1e-9)
-    p_sw = 0.5 * 12.0 * iout * 2 * t_cross * fsw_hz  # Vds pinned at 12V ref
+    p_sw = 0.5 * (v_block if v_block is not None else 12.0) * iout * 2 * t_cross * fsw_hz
     p_gate = 2.0 * mosfet.Qg * 5.0 * fsw_hz
     return (p_cond + p_sw + p_gate), p_cond + p_sw + p_gate
 
@@ -129,6 +139,22 @@ def run_pareto(
 
     objectives = objectives or ["efficiency", "tj", "cost"]
 
+    # The spec's Vin/Vout are FIXED across the search, so classify the
+    # topology and duty once (the old inner loop sized every candidate —
+    # including boosts — with a buck-only formula, audit fix).
+    ratio = req.Vout / req.Vin if req.Vin else 1.0
+    topology = "buck" if ratio < 0.95 else "boost" if ratio > 1.05 else "buck_boost"
+    D = {
+        "buck": req.Vout / req.Vin,
+        "boost": 1.0 - req.Vin / req.Vout,
+        "buck_boost": req.Vout / (req.Vin + req.Vout),
+    }[topology]
+    v_block = {"buck": req.Vin, "boost": req.Vout,
+               "buck_boost": max(req.Vin, req.Vout)}[topology]
+    from pyspice_openfoam_agent.thermal.electro_thermal import conduction_factor
+
+    cond_factor = conduction_factor(topology, D)
+
     class ConverterProblem(Problem):
         """Vars: [fsw_khz, L_uh, v_in_ms, mosfet_index_float]; objectives per `objectives`."""
 
@@ -144,24 +170,28 @@ def run_pareto(
             F = np.zeros((X.shape[0], self.n_obj))
             for i, (fsw_khz, l_uh, v_in, mi) in enumerate(X):
                 mosfet = fets[int(mi)]
-                # analytical sizing at this operating point
-                spec_kwargs = dict(
-                    Vin=req.Vin, Vout=req.Vout, Iout=req.Iout,
-                    fsw=fsw_khz * 1e3, ripple_ratio=req.ripple_ratio,
-                    Vripple=req.ripple_v,
-                )
+                # topology-aware analytical sizing at this operating point
+                # (engine equations, not a buck-only shortcut)
                 try:
-                    sizing = _quick_size(
-                        req.Vin, req.Vout, req.Iout, fsw_khz * 1e3, req.ripple_ratio)
+                    from pyspice_openfoam_agent.sizing.engine import Spec, size as engine_size
+
+                    sizing = engine_size(Spec(
+                        Vin=req.Vin, Vout=req.Vout, Iout=req.Iout,
+                        fsw=fsw_khz * 1e3, ripple_ratio=req.ripple_ratio,
+                        Vripple=req.ripple_v, topology_constraint=topology,
+                    ))
                 except Exception:
                     F[i, :] = [1e6] * self.n_obj
                     continue
-                di = sizing[2]
-                # screening: reject clearly-bad candidates
-                if sizing[0] > mosfet.Id_max or di > mosfet.Id_max:
+                # screening: reject clearly-bad candidates (current headroom
+                # AND an L decision variable that violates the topology's
+                # minimum inductance at this fsw)
+                if sizing.I_peak > mosfet.Id_max or float(l_uh) * 1e-6 < sizing.L_min:
                     F[i, :] = [1e6] * self.n_obj
                     continue
-                p_loss, _ = reduced_order_losses(mosfet, req.Iout, fsw_khz * 1e3)
+                p_loss, _ = reduced_order_losses(
+                    mosfet, req.Iout, fsw_khz * 1e3,
+                    v_block=v_block, conduction_factor=cond_factor)
                 tj = reduced_order_tj(p_loss, mosfet.R_theta_ja, v_in)
                 p_out = req.Vout * req.Iout
                 eff = p_out / (p_out + p_loss)
@@ -174,15 +204,6 @@ def run_pareto(
                 }
                 F[i, :] = [obj_map[o] for o in objectives]
             out["F"] = F
-
-    def _quick_size(vin, vout, iout, fsw_hz, rr):
-        """Buck-only fast sizing for the optimizer inner loop (no Spec object
-        overhead). Returns (I_peak, None, di_pp, None)."""
-        d = vout / vin
-        di = rr * iout
-        l_min = vout * (1 - d) / (fsw_hz * di)
-        i_peak = iout + di / 2
-        return (i_peak, l_min, di, None)
 
     algorithm = NSGA2(pop_size=pop_size, seed=seed)
     res = minimize(ConverterProblem(), algorithm, ("n_gen", n_gen), seed=seed, verbose=False)

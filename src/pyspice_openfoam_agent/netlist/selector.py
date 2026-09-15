@@ -48,15 +48,16 @@ class SelectedComponents:
 def _blocking_voltage(spec: Spec, sizing: SizingResult) -> float:
     """Worst-case steady-state voltage a switch in this topology must block.
 
-    Buck/buck-boost: switches see the full Vin (plus Vout for buck-boost's
-    inverting topology, but Vin dominates and this project doesn't yet model
-    the negative rail explicitly -- see builder.py note). Boost: switches see
-    Vout, the higher of the two rails.
+    Buck: switches block Vin. Boost: the switch node swings to Vout, the
+    higher rail. Buck-boost: Phase 3 emits the 4-switch NON-INVERTING
+    topology, where the left pair (HS/LS_A) blocks ~Vin and the right pair
+    (SYNC/LS_B) blocks ~Vout -- never the sum (that was the classic
+    inverting-topology figure; stale since the builder was corrected).
     """
     if sizing.topology == "boost":
         return spec.Vout
     if sizing.topology == "buck_boost":
-        return spec.Vin + spec.Vout
+        return max(spec.Vin, spec.Vout)
     return spec.Vin
 
 

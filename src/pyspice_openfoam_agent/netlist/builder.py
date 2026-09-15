@@ -11,19 +11,19 @@ model* using Qgd/V_plateau -- not from watching a detailed MOSFET model
 switch in SPICE. So the netlist only needs each switch's ON resistance to be
 correct; ngspice's built-in voltage-controlled switch (`S` device, `SW`
 model) driven by an ideal PWM gate source gives exactly that, with zero
-invented model parameters. Inductor DCR and capacitor ESR/ESL are modeled as
-explicit series R/L elements next to ideal L/C, for the same reason: it's the
-real part's loss-relevant parasitic, not a lumped guess.
+invented model parameters. Inductor DCR and capacitor ESR are modeled as
+explicit series R elements next to ideal L/C, for the same reason: it's the
+real part's loss-relevant parasitic, not a lumped guess (the capacitor ESL
+is deliberately NOT emitted -- see _cap_branch for why it poisons the rig).
 
-Topology coverage: buck, boost, buck_boost. All three use one high/low
-switch pair (synchronous rectification -- one selected MOSFET part number
-used for both switches, which is standard practice at the Rds_on this
-project's library targets) with complementary PWM gate drives and a small
-(1 ns) edge time that acts as informal dead time. Buck-boost is modeled at
-output-voltage *magnitude* (the true inverting topology's negative rail
-sign convention is not carried through the netlist); this is adequate for
-the Phase 3 checkpoint (netlist parses cleanly) and is revisited if Phase 4
-transient results need the real polarity.
+Topology coverage: buck and boost use one high/low switch pair (synchronous
+rectification -- one selected MOSFET part number used for both switches,
+standard practice at the Rds_on this library targets) with complementary
+PWM gate drives, explicit dead time, and antiparallel body-diode clamps.
+buck_boost is the 4-switch NON-INVERTING topology at +|Vout| (HS/LS_A/SYNC/
+LS_B; see _build_buck_boost) -- the classic 2-switch inverting buck-boost
+cannot source a positive output rail in this switch arrangement (confirmed
+empirically; the stale "output at magnitude" note is retired).
 """
 
 from __future__ import annotations
@@ -36,44 +36,47 @@ from pyspice_openfoam_agent.netlist.selector import SelectedComponents
 from pyspice_openfoam_agent.sizing.engine import Spec, SizingResult
 
 _GATE_RISE_FALL = 1e-9  # 1 ns gate edge time
+# Gate drive the rig assumes for Miller-plateau scaling (single source of
+# truth; spice/losses.py imports these for its crossover model so the two
+# can never drift apart).
+GATE_DRIVE_V = 5.0
+GATE_DRIVE_R = 2.0
 # Deterministic non-overlap dead time. MUST be > 2*gate edge time so the two
 # switches are never simultaneously on (synchronous shoot-through guard).
 # Scaled from the library's Miller crossover time when available, defaulting to
 # 30 ns (a conservative silicon-part value at 100-500 kHz).
 _DEAD_TIME_DEFAULT_S = 30e-9
-# Soft-start ramp duration: at least 300 switching periods (task spec) and a
-# sane floor. Exponential/LTI recommendation ~1-2 ms; we use 300*Tsw which at
-# 300 kHz = 1 ms, at 500 kHz = 0.6 ms — always sub-ms so the steady-state
-# detector still sees a settled tail inside a bounded cycle budget.
+
+
+def dead_time_for(mosfet) -> float:
+    """Non-overlap gap for a MOSFET: 2x the Miller crossover time at the
+    rig's gate drive (turn-off plus margin — a value a real gate driver would
+    enforce), floored at the conservative 30 ns silicon default. The floor
+    also guarantees td > 2x gate edge, which is what kills shoot-through
+    between the ideal switches (they switch in ~1 ns)."""
+    qgd = getattr(mosfet, "Qgd", None)
+    vplat = getattr(mosfet, "V_plateau", None)
+    if qgd and vplat and vplat < GATE_DRIVE_V:
+        i_gate = (GATE_DRIVE_V - vplat) / GATE_DRIVE_R
+        t_cross = qgd / i_gate
+        return max(_DEAD_TIME_DEFAULT_S, 2.0 * t_cross)
+    return _DEAD_TIME_DEFAULT_S
+
+
 def _dead_time(sel) -> float:
     try:
-        tr = getattr(sel.mosfet, "t_rise_s", None) or 0.0
-        tf = getattr(sel.mosfet, "t_fall_s", None) or 0.0
-        scale = max(tr, tf, _GATE_RISE_FALL) * 4
-        return max(_DEAD_TIME_DEFAULT_S, scale)
+        return dead_time_for(getattr(sel, "mosfet", sel))
     except Exception:
         return _DEAD_TIME_DEFAULT_S
 
 
+# Soft-start ramp duration: at least 300 switching periods (task spec) and a
+# sane floor. Exponential/LTI recommendation ~1-2 ms; we use 300*Tsw which at
+# 300 kHz = 1 ms, at 500 kHz = 0.6 ms — always sub-ms so the steady-state
+# detector still sees a settled tail inside a bounded cycle budget.
 def _soft_start_s(Tsw: float) -> float:
     """Soft-start ramp length: >= 300 switching periods (task spec)."""
     return 300.0 * Tsw
-
-
-def _pulse(hs: bool, ton_s: float, Tsw: float, td_s: float,
-           v1: float = 0.0, v2: float = 5.0) -> str:
-    """PULSE(...) with dead-time-staggered on-time.
-
-    hs=True  -> active high at t=0, on for ton_s.
-    hs=False -> active high AFTER a td_s delay (so HS turned off td_s before
-                LS turns on), on for (Tsw - td_s - ton_hs) ~ complementary.
-    The ideal-switch Vt=2.5 threshold means a switch conducts above ~2.5 V; the
-    edge time (_GATE_RISE_FALL=1ns) combined with a td_s >= 30ns guarantees the
-    outgoing switch has fully turned OFF before the incoming one turns on.
-    """
-    # For LS we insert a leading dead-time delay so it never overlaps HS's turn-off.
-    td = 0.0 if hs else td_s
-    return f"PULSE({v1:g} {v2:g} {_fmt(td)} {_fmt(_GATE_RISE_FALL)} {_fmt(_GATE_RISE_FALL)} {_fmt(ton_s)} {_fmt(Tsw)})"
 
 
 class NetlistLintError(RuntimeError):
@@ -86,19 +89,15 @@ def _fmt(x: float) -> str:
 
 
 def _cap_branch(node_in: str, node_out: str, C: float, ESR: float, ESL: float, ref: str) -> str:
-    """Cout -- Resr -- (Lesl) -- node_out, as one or two series elements.
-
-    ESL is often 0 in the library (default) or a few nH; skip the inductor
-    element entirely when it's non-positive rather than emit an invalid
-    zero-henry inductor.
+    """Cout -- Resr -- node_out. The library's ESL (a few nH) is deliberately
+    NOT emitted: with the rig's ideal zero-transition-time switches and
+    zero-junction-cap diodes, commutation steps dI/dt are unbounded, and
+    L_esl * dI/dt produces ~100 V non-physical spikes on the output node
+    every cycle (empirically +/-40 V on the boost, where the switch ties
+    directly to out). At 100 kHz-1 MHz the ESL reactance is milliohms -- it
+    carries no real information here but destroys the rig (audit finding).
     """
-    lines = [f"C{ref} {node_in} {ref}_esr {_fmt(C)}"]
-    if ESL > 0:
-        lines.append(f"Resr{ref} {ref}_esr {ref}_esl {_fmt(ESR)}")
-        lines.append(f"Lesl{ref} {ref}_esl {node_out} {_fmt(ESL)}")
-    else:
-        lines.append(f"Resr{ref} {ref}_esr {node_out} {_fmt(ESR)}")
-    return "\n".join(lines)
+    return f"C{ref} {node_in} {ref}_esr {_fmt(C)}\nResr{ref} {ref}_esr {node_out} {_fmt(ESR)}"
 
 
 def _switch_model_name(tag: str) -> str:
@@ -130,19 +129,34 @@ def _switch_pair(hs_name: str, ls_name: str, Rds_on: float, D: float, Tsw: float
 
     Conducting windows (both gates written as PULSE(0 5 ...)):
       HS conducts  [0,  D*Tsw - td]        (turns off td before the ideal edge)
-      LS conducts  [D*Tsw + td, Tsw]       (turns on td AFTER HS is off)
-    so the two switches are separated by a 2*td guaranteed-open gap. With
-    td = 30 ns >> gate edge (1 ns), synchronous shoot-through (task bug #2) is
-    eliminated. The device (S...) lines are written by the caller per topology.
+      LS conducts  [D*Tsw + td, Tsw - td]  (on td after HS off, off td before
+                                            the period wraps back to HS on)
+    so the two switches are separated by a td guaranteed-open gap at BOTH
+    commutation boundaries — including the period wrap (LS off / HS on),
+    which a plain complementary pair would otherwise switch with exactly 0 ns
+    of gap (audit finding: 4 kA shoot-through pulses at Ron ~ 1.4 mOhm).
+    The device (S...) lines are written by the caller per topology.
 
     DC value note: each gate source carries an explicit DC operating value so
     an `.op` solve reproduces the designed duty cycle (HS=5 V ON, LS=0 V OFF)
     instead of the all-off state ngspice assumes with no DC value.
     """
     td = td_s if td_s is not None else _DEAD_TIME_DEFAULT_S
-    t_hs_off = max(D * Tsw - td, 1e-12)          # HS high until here
-    t_ls_on = D * Tsw + td                        # LS high from here
-    t_ls_pw = max(Tsw - t_ls_on, 1e-12)           # LS high width
+    t_hs_off = D * Tsw - td                        # HS high until here
+    t_ls_on = D * Tsw + td                         # LS high from here
+    t_ls_pw = Tsw - td - t_ls_on                   # LS high width (ends td before Tsw)
+    # Extreme duty cycles: a pulse narrower than ~2 gate edges cannot be
+    # rendered by ngspice (it silently stretches TR/TF and changes the duty).
+    # Fail loudly here instead of emitting a netlist that simulates the wrong
+    # converter (audit finding).
+    for label, pw in ((f"HS on-width (D*Tsw - td = {t_hs_off:.3e} s)", t_hs_off),
+                      (f"LS on-width ({t_ls_pw:.3e} s)", t_ls_pw)):
+        if pw < 2.0 * _GATE_RISE_FALL:
+            raise ValueError(
+                f"dead-time/pulse-width collapse: {label} < 2x gate edge "
+                f"({2.0 * _GATE_RISE_FALL:.0e} s). Duty D={D:.4f} is too extreme "
+                f"for td={td * 1e9:.0f} ns at fsw={1.0 / Tsw / 1e3:.0f} kHz."
+            )
     return "\n".join(
         [
             f".model {_switch_model_name(hs_name)} SW(Ron={_fmt(Rds_on)} Roff=1e9 Vt=2.5 Vh=0.1)",
@@ -155,7 +169,8 @@ def _switch_pair(hs_name: str, ls_name: str, Rds_on: float, D: float, Tsw: float
     )
 
 
-def _build_buck(spec: Spec, sizing: SizingResult, sel: SelectedComponents) -> str:
+def _build_buck(spec: Spec, sizing: SizingResult, sel: SelectedComponents,
+                charge_trim: float = 1.0) -> str:
     Tsw = 1.0 / spec.fsw
     Rload = spec.Vout / spec.Iout
     td = _dead_time(sel)
@@ -163,6 +178,7 @@ def _build_buck(spec: Spec, sizing: SizingResult, sel: SelectedComponents) -> st
     # LC output tank is charged gently, eliminating startup overshoot (task
     # bug #3). Open-loop fixed-D: ramping V_in is the correct gentle excitation.
     t_ss = _soft_start_s(Tsw)
+    D_cmd = sizing.D * charge_trim
     lines = [
         f"Buck converter - Phase 3 synthesized netlist ({sel.mosfet.part_number}, "
         f"{sel.inductor.part_number}, {sel.capacitor.part_number})",
@@ -177,7 +193,7 @@ def _build_buck(spec: Spec, sizing: SizingResult, sel: SelectedComponents) -> st
         "Dhs sw in Dbody",
         "Dls 0 sw Dbody",
         _body_diode_models(),
-        _switch_pair("hs", "ls", sel.mosfet.Rds_on, sizing.D, Tsw, td_s=td),
+        _switch_pair("hs", "ls", sel.mosfet.Rds_on, D_cmd, Tsw, td_s=td),
         "",
         "* Output filter inductor with real DCR in series",
         f"Lout sw lx {_fmt(sel.inductor.L)}",
@@ -188,17 +204,21 @@ def _build_buck(spec: Spec, sizing: SizingResult, sel: SelectedComponents) -> st
         "",
         f"Rload out 0 {_fmt(Rload)}",
         "",
+        f"* duty servo trim {charge_trim:.4f} -> commanded D {D_cmd:.4f} "
+        f"(design D {sizing.D:.4f})",
         ".op",
         ".end",
     ]
     return "\n".join(lines) + "\n"
 
 
-def _build_boost(spec: Spec, sizing: SizingResult, sel: SelectedComponents) -> str:
+def _build_boost(spec: Spec, sizing: SizingResult, sel: SelectedComponents,
+                 charge_trim: float = 1.0) -> str:
     Tsw = 1.0 / spec.fsw
     Rload = spec.Vout / spec.Iout
     td = _dead_time(sel)
     t_ss = _soft_start_s(Tsw)
+    D_cmd = sizing.D * charge_trim
     lines = [
         f"Boost converter - Phase 3 synthesized netlist ({sel.mosfet.part_number}, "
         f"{sel.inductor.part_number}, {sel.capacitor.part_number})",
@@ -217,20 +237,23 @@ def _build_boost(spec: Spec, sizing: SizingResult, sel: SelectedComponents) -> s
         "Dctrl 0 sw Dbody",
         "Dsync sw out Dbody",
         _body_diode_models(),
-        _switch_pair("ctrl", "sync", sel.mosfet.Rds_on, sizing.D, Tsw, td_s=td),
+        _switch_pair("ctrl", "sync", sel.mosfet.Rds_on, D_cmd, Tsw, td_s=td),
         "",
         "* Output capacitor with real ESR (+ ESL) in series",
         _cap_branch("out", "0", sel.capacitor.C, sel.capacitor.ESR, sel.capacitor.ESL, "out"),
         "",
         f"Rload out 0 {_fmt(Rload)}",
         "",
+        f"* duty servo trim {charge_trim:.4f} -> commanded D {D_cmd:.4f} "
+        f"(design D {sizing.D:.4f})",
         ".op",
         ".end",
     ]
     return "\n".join(lines) + "\n"
 
 
-def _build_buck_boost(spec: Spec, sizing: SizingResult, sel: SelectedComponents) -> str:
+def _build_buck_boost(spec: Spec, sizing: SizingResult, sel: SelectedComponents,
+                      charge_trim: float = 1.0) -> str:
     """Non-inverting (4-switch) buck-boost, output at +|Vout|.
 
     Topology correction (audit finding): the classic 2-switch INVERTING
@@ -259,13 +282,25 @@ def _build_buck_boost(spec: Spec, sizing: SizingResult, sel: SelectedComponents)
     Rload = spec.Vout / spec.Iout
     td = _dead_time(sel)
     t_ss = _soft_start_s(Tsw)
-    dt_charge = sizing.D * Tsw
-    dt_discharge = (1.0 - sizing.D) * Tsw
+    dt_charge = sizing.D * charge_trim * Tsw
+    D_cmd = sizing.D * charge_trim
+    dt_discharge = (1.0 - sizing.D * charge_trim) * Tsw
     # Dead-time staggered phase boundaries: charge ends td early, discharge
     # starts td late (and vice-versa), so the two pairs never overlap.
-    t_charge_on = max(dt_charge - td, 1e-12)
+    t_charge_on = dt_charge - td
     t_discharge_on = dt_charge + td
-    t_discharge_end = max(Tsw - td, 1e-12)
+    t_discharge_end = Tsw - td
+    # Same extreme-duty guard as _switch_pair: a gate pulse narrower than two
+    # edge times cannot be rendered by ngspice and silently changes the duty.
+    for label, pw in ((f"charge-phase width ({t_charge_on:.3e} s)", t_charge_on),
+                      (f"discharge-phase width ({t_discharge_end - t_discharge_on:.3e} s)",
+                       t_discharge_end - t_discharge_on)):
+        if pw < 2.0 * _GATE_RISE_FALL:
+            raise ValueError(
+                f"dead-time/pulse-width collapse in buck_boost: {label} < 2x gate "
+                f"edge. Duty D={sizing.D:.4f} too extreme for td={td * 1e9:.0f} ns "
+                f"at fsw={spec.fsw / 1e3:.0f} kHz."
+            )
     mod = {tag: _switch_model_name(tag) for tag in ("hs", "ls_a", "ls_b", "sync")}
     sw_model = lambda tag: (  # noqa: E731
         f".model {mod[tag]} SW(Ron={_fmt(sel.mosfet.Rds_on)} Roff=1e9 Vt=2.5 Vh=0.1)"
@@ -290,9 +325,9 @@ def _build_buck_boost(spec: Spec, sizing: SizingResult, sel: SelectedComponents)
         "Dls_b 0 sw_b Dbody",
         _body_diode_models(),
         "",
-        "* Floating inductor with real DCR in series (sw_a -- L -- sw_b)",
-        f"Lout sw_a sw_b {_fmt(sel.inductor.L)}",
-        f"Rdcr sw_b out {_fmt(sel.inductor.DCR)}",
+        "* Floating inductor with real DCR in series (sw_a -- L -- Rdcr -- sw_b)",
+        f"Lout sw_a lx {_fmt(sel.inductor.L)}",
+        f"Rdcr lx sw_b {_fmt(sel.inductor.DCR)}",
         "",
         "* Output capacitor with real ESR (+ ESL) in series",
         _cap_branch("out", "0", sel.capacitor.C, sel.capacitor.ESR, sel.capacitor.ESL, "out"),
@@ -314,6 +349,8 @@ def _build_buck_boost(spec: Spec, sizing: SizingResult, sel: SelectedComponents)
         f"Vgate_sync gate_sync 0 DC 0 PULSE(0 5 {_fmt(t_discharge_on)} {_fmt(_GATE_RISE_FALL)} "
         f"{_fmt(_GATE_RISE_FALL)} {_fmt(t_discharge_end - t_discharge_on)} {_fmt(Tsw)})",
         "",
+        f"* duty servo trim {charge_trim:.4f} -> commanded D {D_cmd:.4f} "
+        f"(design D {sizing.D:.4f})",
         ".op",
         ".end",
     ]
@@ -327,13 +364,67 @@ _BUILDERS = {
 }
 
 
-def build_netlist(spec: Spec, sizing: SizingResult, selected: SelectedComponents) -> str:
-    """Dispatch to the right topology's netlist builder."""
+def build_netlist(spec: Spec, sizing: SizingResult, selected: SelectedComponents,
+                  charge_trim: float = 1.0) -> str:
+    """Dispatch to the right topology's netlist builder.
+
+    `charge_trim` scales the commanded charge-phase duty (design D stays
+    untouched); the run_spice duty servo uses it to hold the simulated
+    operating point at the design Vout/Iout despite static drops (dead-time
+    diode clamp, DCR, Ron) — the open-loop equivalent of what the closed
+    loop does in hardware."""
     try:
         builder = _BUILDERS[sizing.topology]
     except KeyError:
         raise ValueError(f"No netlist builder for topology {sizing.topology!r}") from None
-    return builder(spec, sizing, selected)
+    return builder(spec, sizing, selected, charge_trim=charge_trim)
+
+
+def suggested_charge_trim(spec: Spec, sizing: SizingResult, selected: SelectedComponents) -> float:
+    """Analytic volt-second-balance estimate of the charge-window trim that
+    holds the open-loop rig at the design Vout despite static drops
+    (dead-time body-diode clamp, DCR, Ron). The run_spice duty servo refines
+    this starting estimate against the actual waveforms.
+
+    Per topology (Tsw = period, td = dead time, 3 dead windows/period, Vf =
+    body-diode clamp of the Dbody model):
+      buck:   Vin*t_on = (Vout + I*DCR)*Tsw + Vf*3td + I*Ron*(Tsw - 3td)
+      boost:  (Vout + I*Ron)*t_sync - Vf*3td = (Vin - I*DCR)*Tsw,
+              t_sync = Tsw - 3td - t_ctrl
+      buck_boost: charge/discharge each carry i_L through two series switches;
+              I_L = Iout/(1-D) (delivered only during discharge).
+    """
+    Tsw = 1.0 / spec.fsw
+    td = _dead_time(selected)
+    dead = 3.0 * td
+    Ron = selected.mosfet.Rds_on
+    DCR = selected.inductor.DCR
+    Vf = 0.7  # Dbody clamp level (Is=1e-9, N=1.0 at load current)
+    D = min(max(sizing.D, 0.05), 0.95)
+    Dp = 1.0 - D
+
+    try:
+        if sizing.topology == "buck":
+            i_l = spec.Iout
+            t_on = ((spec.Vout + i_l * DCR) * Tsw + dead * Vf
+                    + i_l * Ron * (Tsw - dead)) / spec.Vin
+        elif sizing.topology == "boost":
+            i_l = spec.Iout / Dp
+            t_on = Tsw - dead - ((spec.Vin - i_l * DCR) * Tsw + dead * Vf) \
+                / (spec.Vout + i_l * Ron)
+        else:  # buck_boost (4-switch non-inverting)
+            i_l = spec.Iout / Dp
+            r_series = 2.0 * Ron + DCR
+            a_c = spec.Vin - i_l * r_series    # charge-phase volt scale
+            a_d = spec.Vout + i_l * r_series   # discharge-phase volt scale
+            t_on = (a_d * (Tsw - dead) + dead * (spec.Vout + Vf + i_l * DCR)) / a_c
+        # t_on is the desired CONDUCTING width; the builders derive that width
+        # as trim*D*Tsw - td (each phase ends td early), so invert that.
+        if not (t_on > 0.0 and t_on < Tsw - dead):
+            return 1.0
+        return float(min(max((t_on + td) / (D * Tsw), 0.3), 3.0))
+    except Exception:
+        return 1.0
 
 
 def write_netlist(netlist_text: str, path: str | Path) -> Path:
@@ -356,9 +447,14 @@ def lint_netlist(cir_path: str | Path, ngspice_bin: str = "ngspice") -> LintResu
     This runs `.op` (an operating-point solve), not a `.tran` -- it validates
     that every device/model/node reference parses and the circuit is
     solvable, without doing the real transient work that's Phase 4's job.
-    Ngspice's own exit code is not a reliable success signal (it returns
-    non-zero even on some benign no-simulation-requested cases), so success
-    is judged by scanning the log for "error" (case-insensitive) instead.
+
+    Success criterion (audit fix): ngspice's exit code is not a reliable
+    success signal by itself (non-zero on some benign cases), and scanning
+    for the substring "error" alone false-passes differently-worded
+    failures. The gate is now: exit code 0 AND no ngspice error markers
+    ("error"/"fatal error"/"unknown device"/"could not" parse failures) in
+    the combined log. That is still a heuristic, but it fails closed on the
+    known ngspice failure phrasings instead of only on the literal word.
     """
     p = Path(cir_path)
     try:
@@ -371,7 +467,10 @@ def lint_netlist(cir_path: str | Path, ngspice_bin: str = "ngspice") -> LintResu
     except FileNotFoundError as e:
         raise NetlistLintError(f"'{ngspice_bin}' not found on PATH -- is ngspice installed?") from e
     log = proc.stdout + proc.stderr
-    ok = "error" not in log.lower()
+    failure_markers = ("error", "fatal", "unknown device", "could not", "not found",
+                       "no such ", "failed to parse", "syntax")
+    lowered = log.lower()
+    ok = proc.returncode == 0 and not any(m in lowered for m in failure_markers)
     return LintResult(ok=ok, log=log)
 
 

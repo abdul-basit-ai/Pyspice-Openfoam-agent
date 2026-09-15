@@ -99,9 +99,16 @@ def plan_mesh(geo: BoardGeometry, fidelity: str = "balanced") -> MeshPlan:
     if preset is None:
         raise MeshPlanError(
             f"unknown fidelity {fidelity!r} — choose from {sorted(MESH_PRESETS)}")
-    # collect partition edges
-    xs = {0.0, geo.length_mm}
-    ys = {0.0, geo.width_mm}
+    # collect partition edges. The wind-tunnel ENVELOPE (board.domain) is the
+    # outer boundary: inlet plane upstream of the board's leading edge, outlet
+    # downstream of the trailing edge, side margins beyond the board edges
+    # (audit fix: the envelope constants existed but were never added, so
+    # inlet/outlet sat flush with the board and the sidewalls blocked
+    # around-the-board flow; the board's side faces also landed in
+    # inlet/outlet patches).
+    d = geo.domain
+    xs = {d["x_min_mm"], 0.0, geo.length_mm, d["x_max_mm"]}
+    ys = {d["y_min_mm"], 0.0, geo.width_mm, d["y_max_mm"]}
     device_tops: set[float] = set()
     for z in geo.zones.values():
         xs.add(round(z.x_min, 6))
@@ -148,7 +155,13 @@ def plan_mesh(geo: BoardGeometry, fidelity: str = "balanced") -> MeshPlan:
             x_mid = (xs_edges[i] + xs_edges[i + 1]) / 2
             for j in range(ny):
                 y_mid = (ys_edges[j] + ys_edges[j + 1]) / 2
-                if k == 0:
+                # board material exists ONLY under the board footprint; the
+                # envelope extension around it is air (wind tunnel).
+                on_board = (
+                    -1e-9 <= x_mid <= geo.length_mm + 1e-9
+                    and -1e-9 <= y_mid <= geo.width_mm + 1e-9
+                )
+                if k == 0 and on_board:
                     zone = BOARD_ZONE
                 else:
                     zone = AIR_ZONE
@@ -222,8 +235,9 @@ def render_block_mesh_dict(plan: "MeshPlan") -> str:
 
     Boundary patches on the GLOBAL mesh (splitMeshRegions reassigns faces
     per region afterwards):
-      inlet (x=0), outlet (x=length), topWall (z=tunnel top),
-      sideWall_y0 / sideWall_y1 (y=0 / y=width), bottomWall (z=0).
+      inlet (x = envelope x_min, upstream of the board), outlet (x = x_max,
+      downstream), topWall (z=tunnel top), sideWall_y0 / sideWall_y1
+      (y = envelope sides, beyond the board edges), bottomWall (z=0).
     Internal faces between blocks of different zones become the inter-region
     coupled interfaces after splitMeshRegions -cellZones.
     """
@@ -275,17 +289,7 @@ def render_block_mesh_dict(plan: "MeshPlan") -> str:
     ap("")
 
     # ---- boundary patches (global-mesh outer faces) ----
-    def face(i, j, k, which):  # returns 4 vertex ids of one boundary face
-        if which == "x_min":
-            return [ _vertex_index(plan, i, j, k), _vertex_index(plan, i, j + 1, k),
-                     _vertex_index(plan, i, j + 1, k + 1), _vertex_index(plan, i, j, k + 1) ]
-        if which == "x_max":
-            return [ _vertex_index(plan, i, j, k), _vertex_index(plan, i, j + 1, k),
-                     _vertex_index(plan, i, j + 1, k + 1), _vertex_index(plan, i, j, k + 1) ]
-        raise ValueError(which)
-
-    # plane faces as block-face index tuples (blockMesh boundary uses
-    # vertex quadruples, ordering matters): build per-plane directly.
+    # plane faces built directly as vertex quadruples (ordering matters)
     ap("boundary")
     ap("(")
     # inlet: all faces on x = x_edges[0]

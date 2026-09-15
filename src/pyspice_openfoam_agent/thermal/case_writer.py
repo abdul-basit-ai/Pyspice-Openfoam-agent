@@ -114,6 +114,85 @@ def _remove_tutorial_regions(case: Path) -> None:
         p.unlink()
 
 
+# Per-region SOLID material properties (audit fix: all four solids previously
+# inherited the tutorial v_CPU's ALUMINUM dict — a near-perfect heat spreader
+# that under-predicted Tj by an order of magnitude). Values are standard
+# compact-thermal-model material constants:
+#   board:    FR4 laminate with the JESD51-3 70 um (2 oz) top copper, modeled
+#             as an ISOTROPIC EFFECTIVE conductivity ~20 W/m/K — the standard
+#             compact-PCB approximation for copper-clad FR4 (in-plane effective
+#             range 15-25 W/m/K in the PCB thermal literature). A full
+#             anisotropic copper/FR4 stackup is future work.
+#   mosfets:  the zones are the silicon DIE footprint (board.py uses the
+#             library's die_x/y/z), so silicon constants apply.
+#   inductor: molded iron-powder/ferrite composite, coarse effective values.
+_SOLID_MATERIALS = {
+    "board":     {"molWeight": 100.0, "Cp": 600.0, "kappa": 20.0, "rho": 1900.0},
+    "hs_mosfet": {"molWeight": 28.09, "Cp": 700.0, "kappa": 130.0, "rho": 2330.0},
+    "ls_mosfet": {"molWeight": 28.09, "Cp": 700.0, "kappa": 130.0, "rho": 2330.0},
+    "inductor":  {"molWeight": 55.85, "Cp": 500.0, "kappa": 8.0, "rho": 6000.0},
+}
+
+_SOLID_THERMO_TEMPLATE = """FoamFile
+{{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      thermophysicalProperties;
+}}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+thermoType
+{{
+    type            heSolidThermo;
+    mixture         pureMixture;
+    transport       constIso;
+    thermo          hConst;
+    equationOfState rhoConst;
+    specie          specie;
+    energy          sensibleEnthalpy;
+}}
+
+mixture
+{{
+    specie
+    {{
+        nMoles          1;
+        molWeight       {molWeight:.2f};
+    }}
+
+    thermodynamics
+    {{
+        Hf              0;
+        Sf              0;
+        Cp              {Cp:.1f};
+    }}
+
+    transport
+    {{
+        kappa           {kappa:.1f};
+    }}
+
+    equationOfState
+    {{
+        rho             {rho:.1f};
+    }}
+}}
+
+// ************************************************************************* //
+"""
+
+
+def _write_solid_thermophysical(case: Path, region: str) -> None:
+    """Write the region's thermophysicalProperties with ITS material (not the
+    tutorial's aluminum)."""
+    m = _SOLID_MATERIALS[region]
+    (case / "constant" / region / "thermophysicalProperties").write_text(
+        _SOLID_THERMO_TEMPLATE.format(**m), encoding="utf-8"
+    )
+
+
 def _rework_regions(case: Path) -> None:
     """Build air + solid region dirs from the PRISTINE tutorial (never the
     case copy, which we strip): fluid air <- domain0, solids <- v_CPU."""
@@ -145,7 +224,7 @@ def _rework_regions(case: Path) -> None:
         for f in ("T", "p"):
             shutil.copyfile(tut_solid_dir / f, rd / f)
         rc = case / "constant" / r; rc.mkdir(parents=True)
-        shutil.copyfile(tut_solid_const / "thermophysicalProperties", rc / "thermophysicalProperties")
+        _write_solid_thermophysical(case, r)  # real material per region
         rs = case / "system" / r; rs.mkdir(parents=True)
         for f in ("fvSchemes", "fvSolution"):
             shutil.copyfile(tut_solid_sys / f, rs / f)
@@ -219,12 +298,16 @@ def build_case(
     geo: BoardGeometry,
     power_watts: dict[str, float],
     out_dir: str | Path,
-    v_in_m_s: float = 1.0,
+    fidelity: str = "balanced",
     n_cells_budget: int | None = None,
 ) -> CasePaths:
     """Assemble the complete multi-region CHT case under `out_dir`.
 
-    v_in_m_s sets the forced-convection inlet speed (default 1 m/s)."""
+    fidelity: "fast" | "balanced" | "high" mesh preset (Phase 10 user-choice
+    policy). The inlet air SPEED is deliberately NOT a parameter here: it is
+    applied when boundary conditions are (re)written, i.e. by
+    run_mesh_pipeline(v_in_m_s=...) — passing it here used to be a silent
+    no-op (audit finding: every CHT solve ran at 1 m/s regardless)."""
     src = _find_tutorial_case()
     out = Path(out_dir)
     if out.exists():
@@ -233,7 +316,7 @@ def build_case(
     _copy_scaffold(src, out)
     _remove_tutorial_regions(out)
 
-    plan = plan_mesh(geo)
+    plan = plan_mesh(geo, fidelity=fidelity)
     if n_cells_budget is not None and plan.n_cells > n_cells_budget:
         raise CaseBuildError(
             f"planned mesh {plan.n_cells} cells exceeds budget {n_cells_budget}"
