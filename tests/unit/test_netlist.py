@@ -127,3 +127,38 @@ def test_lint_error_wraps_missing_ngspice_binary(lib: Library, tmp_path) -> None
     path = write_netlist(build_netlist(spec, sizing, sel), tmp_path / "buck.cir")
     with pytest.raises(NetlistLintError):
         lint_netlist(path, ngspice_bin="definitely-not-a-real-binary")
+
+
+def test_dead_time_gates_never_overlap() -> None:
+    """Synchronous gate drives must have a non-overlap dead-time gap."""
+    from pyspice_openfoam_agent.netlist.builder import _switch_pair, _DEAD_TIME_DEFAULT_S
+    Tsw = 1e-6  # 1 MHz
+    D = 0.5
+    pair = _switch_pair("hs", "ls", 0.0014, D, Tsw)
+    # parse the two PULSE(...) delay + width args: PULSE(V1 V2 Td Tr Tf Pw Per)
+    import re
+    pulses = re.findall(r"PULSE\(\S+ \S+ (\S+) (\S+) (\S+) (\S+) (\S+)\)", pair)
+    assert len(pulses) == 2
+    hs = pulses[0]; ls = pulses[1]
+    t_hs_off = float(hs[3])           # HS Pw (active width)
+    t_ls_on = float(ls[0])             # LS Td (leading delay)
+    assert t_ls_on > t_hs_off          # LS turns on AFTER HS turns off
+    gap = t_ls_on - t_hs_off
+    assert gap >= _DEAD_TIME_DEFAULT_S
+    # gate edges are 1ns, dead time 30ns >> 1ns -> real non-overlap
+    assert gap > 10e-9
+
+
+def test_soft_start_ramp_present() -> None:
+    """Each builder emits a soft-start PWL on the input rail (>=300*Tsw)."""
+    from pyspice_openfoam_agent.library.loader import load_library
+    from pyspice_openfoam_agent.sizing.engine import Spec, size
+    from pyspice_openfoam_agent.netlist.builder import build_netlist
+    from pyspice_openfoam_agent.netlist.selector import select_components
+
+    lib = load_library()
+    spec = Spec(Vin=12, Vout=5, Iout=3, fsw=500e3, ripple_ratio=0.4, Vripple=0.05)
+    sz = size(spec); sel = select_components(lib, spec, sz)
+    cir = build_netlist(spec, sz, sel)
+    assert "PWL(0 0" in cir, "soft-start PWL missing"
+    assert "DC" in cir.split("PWL(")[0], "input DC value must remain for .op"

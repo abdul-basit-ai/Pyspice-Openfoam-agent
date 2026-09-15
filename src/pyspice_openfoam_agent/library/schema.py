@@ -53,6 +53,12 @@ class MOSFET(_PackageStr):
     Ciss: float = Field(gt=0, description="Input capacitance, F (nF*1e-9 from datasheets)")
     Coss: float | None = Field(default=None, gt=0, description="Output capacitance, F (optional)")
     Crss: float | None = Field(default=None, gt=0, description="Reverse-transfer capacitance, F (optional)")
+    # Synchronous-rectifier loss terms (task: HS hard-switch vs LS freewheel):
+    # reverse-recovery charge of the LS body diode, and its forward voltage.
+    Qrr: float | None = Field(default=None, gt=0,
+                              description="LS body-diode reverse-recovery charge, C (optional; high for slow diodes)")
+    V_F: float = Field(default=0.7, gt=0.1, lt=2.0,
+                       description="LS body-diode forward voltage during dead time, V")
     Id_max: float = Field(gt=0, description="Continuous drain current at 25 degC case, A")
     package: str
     # Thermal / mechanical (Phase 6 board template + Phase 5 per-device loss)

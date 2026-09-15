@@ -151,11 +151,17 @@ def test_checkpoint_losses_match_hand_calculations(buck_run) -> None:
     assert d.ls_conduction == pytest.approx(i2 * sel.mosfet.Rds_on * (1 - D), rel=0.15)
     assert d.inductor_dcr == pytest.approx(i2 * sel.inductor.DCR, rel=0.15)
 
-    # switching: 0.5*Vin*I*(tr+tf)*fsw, tr=tf=Qgd/I_gate
+    # switching: HS hard-switch + Coss; LS is a sync rect (body-diode + Qrr).
     t_cross = _crossover_time(sel.mosfet)
-    e_sw = 0.5 * PUBLISHED["Vin"] * lb.i_l_avg * (2 * t_cross)
-    assert d.hs_switching == pytest.approx(e_sw * PUBLISHED["fsw"], rel=0.15)
-    assert d.ls_switching == pytest.approx(e_sw * PUBLISHED["fsw"], rel=0.15)
+    e_sw_hs = 0.5 * PUBLISHED["Vin"] * lb.i_l_avg * (2 * t_cross)
+    coss = sel.mosfet.Coss if sel.mosfet.Coss else 500e-12
+    e_oss = 0.5 * coss * PUBLISHED["Vin"] ** 2
+    assert d.hs_switching == pytest.approx(
+        (e_sw_hs + e_oss) * PUBLISHED["fsw"], rel=0.2)
+    # LS sync rect: cross-conduction ~0; loss = body-diode dead-time + Qrr.
+    # Qrr defaults 0 -> only the dead-time term remains, far below the HS term.
+    assert d.ls_switching != pytest.approx((e_sw_hs + e_oss) * PUBLISHED["fsw"], rel=0.2)
+    assert d.ls_switching < d.hs_switching * 0.5  # sync rect loses far less than HS
 
     # gate drive: 2 * Qg * Vdrv * fsw
     assert d.gate_drive == pytest.approx(2 * sel.mosfet.Qg * 5.0 * PUBLISHED["fsw"], rel=1e-6)

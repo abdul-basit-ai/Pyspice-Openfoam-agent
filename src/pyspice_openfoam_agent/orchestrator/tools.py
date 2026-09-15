@@ -26,7 +26,7 @@ from pyspice_openfoam_agent.library.loader import Library, load_library
 from pyspice_openfoam_agent.netlist.builder import build_and_write
 from pyspice_openfoam_agent.netlist.selector import select_components
 from pyspice_openfoam_agent.sizing.engine import Spec, size
-from pyspice_openfoam_agent.spice.losses import extract_losses
+from pyspice_openfoam_agent.spice.losses import extract_losses, efficiency_from_losses
 from pyspice_openfoam_agent.spice.runner import run_until_steady_state
 from pyspice_openfoam_agent.thermal.board import build_board_geometry
 from pyspice_openfoam_agent.thermal.case_writer import build_case, run_mesh_pipeline
@@ -243,19 +243,34 @@ def tool_run_spice(ctx: ToolContext, max_cycles: float = 800) -> dict:
             start_cycles=40, max_cycles=max_cycles,
             expected_level=ctx.spec.Vout,
         )
-        from pyspice_openfoam_agent.spice.runner import measure_output_ripple, measure_efficiency
+        from pyspice_openfoam_agent.spice.runner import (
+            measure_output_ripple, measure_efficiency, validate_transient_health,
+        )
 
         ripple = measure_output_ripple(run.result, "out", ctx.spec.fsw)
-        eff = measure_efficiency(
-            run.result, vin=ctx.spec.Vin, in_current_branch="vin#branch",
-            out_node="out", r_load=ctx.spec.Vout / ctx.spec.Iout, fsw=ctx.spec.fsw,
+        health = validate_transient_health(
+            run.result, "out", ctx.spec.Vout, ctx.spec.fsw,
+            polarity="positive" if ctx.sizing.topology != "buck_boost" else "bipolar",
         )
         lb = extract_losses_for(ctx, run)
+        # Efficiency is LOSS-BASED: eta = P_out/(P_out+P_loss). The waveform
+        # measure (measure_efficiency) is loss-blind -- ideal switches cannot
+        # dissipate hard-switch/Coss/Crr losses, so it always reads ~98-100%,
+        # which is NOT the physical efficiency. Loss-based is authoritative.
+        if lb is not None and lb.losses.total > 0:
+            eff = efficiency_from_losses(ctx.spec.Vout, ctx.spec.Iout, lb.losses.total)
+        else:
+            eff = measure_efficiency(
+                run.result, vin=ctx.spec.Vin, in_current_branch="vin#branch",
+                out_node="out", r_load=ctx.spec.Vout / ctx.spec.Iout, fsw=ctx.spec.fsw,
+            )
     except Exception as e:
         return {"error": f"spice run failed: {e}"}
     ctx.artifacts["spice"] = {
         "converged": run.steady_state.converged, "cycles": run.n_cycles_run,
         "ripple_V": ripple, "efficiency": eff, "losses_W": lb.losses.total if lb else None,
+        "health": health, "hs_switching_W": lb.losses.hs_switching if lb else None,
+        "ls_switching_W": lb.losses.ls_switching if lb else None,
     }
     # visualizations for the UI (best-effort; never fail the tool on render)
     try:
@@ -284,12 +299,13 @@ def tool_run_spice(ctx: ToolContext, max_cycles: float = 800) -> dict:
         "efficiency": round(eff, 4),
         "total_loss_W": round(lb.losses.total, 3) if lb else None,
         "per_device_W": {k: round(v, 3) for k, v in lb.per_device_watts.items()} if lb else {},
+        "health": health,
     }
 
 
 def extract_losses_for(ctx: ToolContext, run):
     """Bridging helper: Phase 5 losses on the solved steady-state window."""
-    from pyspice_openfoam_agent.spice.losses import extract_losses
+    from pyspice_openfoam_agent.spice.losses import extract_losses, efficiency_from_losses
 
     return extract_losses(
         run.result, ctx.selected.mosfet, ctx.selected.inductor.L, ctx.selected.inductor.DCR,

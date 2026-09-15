@@ -130,6 +130,24 @@
           },
           "date": "2026-09-14T18:29:31+00:00",
           "outcome": {}
+        },
+        {
+          "best_config": {
+            "capacitor": "EEF-CD1E221P",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-14T22:40:48+00:00",
+          "outcome": {
+            "converged": true,
+            "tj_per_device_C": {
+              "board": 35.8,
+              "hs_mosfet": 36.01,
+              "inductor": 31.98,
+              "ls_mosfet": 35.35
+            },
+            "v_in_m_s": 1.0
+          }
         }
       ],
       "spec": {
@@ -414,6 +432,66 @@
         "Vout": 8.0,
         "Vripple": 0.05,
         "fsw_khz": 650.0,
+        "ripple_ratio": 0.3
+      }
+    },
+    "9a01ca50aac3b739": {
+      "attempts": [
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-14T22:33:33+00:00",
+          "outcome": {
+            "converged": true,
+            "tj_per_device_C": {
+              "board": 32.07,
+              "hs_mosfet": 32.2,
+              "inductor": 29.49,
+              "ls_mosfet": 31.75
+            },
+            "v_in_m_s": 1.0
+          }
+        }
+      ],
+      "spec": {
+        "Iout": 5.0,
+        "Vin": 10.0,
+        "Vout": 5.0,
+        "Vripple": 0.05,
+        "fsw_khz": 700.0,
+        "ripple_ratio": 0.3
+      }
+    },
+    "b33c583d683510a9": {
+      "attempts": [
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-15T09:23:46+00:00",
+          "outcome": {
+            "converged": true,
+            "tj_per_device_C": {
+              "board": 28.99,
+              "hs_mosfet": 29.04,
+              "inductor": 28.05,
+              "ls_mosfet": 28.91
+            },
+            "v_in_m_s": 1.0
+          }
+        }
+      ],
+      "spec": {
+        "Iout": 5.0,
+        "Vin": 7.0,
+        "Vout": 3.0,
+        "Vripple": 0.045,
+        "fsw_khz": 400.0,
         "ripple_ratio": 0.3
       }
     },

@@ -223,23 +223,30 @@ def tab_results(state: dict | None, artifacts: dict) -> None:
             st.error(f"FAIL — {cl.get('compensator', '?')} compensator")
         if cl.get("reasons"):
             st.caption(" · ".join(cl["reasons"]))
-    # electro-thermal convergence (goals gap: self-consistent Tj)
+    # electro-thermal convergence (the AUTHORITATIVE self-consistent Tj).
+    # Task: show the final converged value, not the seed iteration.
     et = artifacts.get("electro_thermal")
-    if et:
-        st.subheader("Electro-thermal (self-consistent Tj)")
+    if et and et.get("final_tj_C") is not None:
+        st.subheader("Junction temperature (electro-thermal, converged)")
         c1, c2 = st.columns(2)
-        c1.metric("Tj (converged)", f"{et.get('final_tj_C', 0):.1f} °C" if et.get("final_tj_C") is not None else "N/A")
+        c1.metric("Tj (final, converged)", f"{et['final_tj_C']:.1f} °C")
         c2.metric("iterations", et.get("iterations", "N/A"))
         if et.get("converged"):
-            st.success("converged (|ΔTj| < 2 °C)")
+            st.success("converged — is the self-consistent operating Tj "
+                       "(weakly-coupled reduced-order model)")
         else:
             st.error("convergence FAILED — validation failure, investigate")
         if et.get("trace"):
             with st.expander("Fixed-point trace", expanded=False):
                 st.code("\n".join(et["trace"]), language="text")
+
     thermal = artifacts.get("thermal")
     if thermal:
-        st.subheader("Thermal")
+        st.subheader("Full CHT solve (OpenFOAM, reference)")
+        st.markdown(
+            "The table below is the full 3D conjugate-heat-transfer solve at the "
+            "same operating point — a cross-check on the electro-thermal Tj above."
+        )
         st.json(thermal.get("tj_per_device_C", {}))
 
 

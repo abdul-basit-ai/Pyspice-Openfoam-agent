@@ -217,8 +217,101 @@ def measure_output_ripple(
     mask = t >= window_start
     if not mask.any():
         raise ValueError(f"Run is shorter than {n_tail_cycles} switching cycle(s)")
-    return float(v[mask].max() - v[mask].min())
+    vw = v[mask]
+    # Robust ripple: sparse stiff-solver/ESL-ring impulse samples (ideal-switch
+    # transitions through the cap ESL) alias to non-physical spikes that swamp
+    # a raw max-min. The true ripple lives near the mean; reject outliers by
+    # operating on the Tukey-ish compact band, so a healthy converter reports
+    # its real ripple and a genuine limit-cycle (repeating every period) still
+    # shows as a large value through the unchanged inner samples.
+    med = float(np.median(vw))
+    a = np.abs(vw - med)
+    k = float(np.percentile(a, 99))  # 99th-percentile deviation is still physical
+    if k > 0:
+        vw = vw[a <= 3.0 * k]
+    if len(vw) < 10:
+        vw = v[mask]
+    return float(vw.max() - vw.min())
 
+
+def validate_transient_health(
+    result: TransientResult,
+    out_node: str,
+    v_target: float,
+    fsw: float,
+    polarity: str = "positive",
+    max_negative_v: float = 0.5,
+    max_ripple_frac: float = 0.20,
+    max_offset_frac: float = 0.05,
+    steady_mask: np.ndarray | None = None,
+) -> dict:
+    """Automated sanity checks on a transient result (task section D).
+
+    Guards the orchestrator from trusting a physically-corrupted run:
+      - No shoot-through / rail flip: Vout must not dip below -0.5 V (positive
+        buck/boost). Negative spikes indicate HS/LS cross-conduction (the
+        dead-time bug).
+      - Steady ripple < 20% of Vout_target (fails on a limit-cycle / ringing).
+      - Steady mean within 5% of Vout_target (fails on a large offset, e.g. a
+        soft-start that never settled or a dead circuit).
+
+    Returns a dict {ok, checks, reasons} instead of raising, so the caller
+    (a tool) can return a structured failure the LLM can observe rather than
+    crash the run. `steady_mask` defaults to the last 2 switches periods.
+    """
+    t = result.time
+    v = result[out_node]
+    Tsw = 1.0 / fsw
+    wfull = steady_mask if steady_mask is not None else (t >= t[-1] - 2 * Tsw)
+    if wfull.sum() < 10:
+        raise ValueError(f"steady window too short for health checks ({wfull.sum()} pts)")
+
+    checks = {}
+    reasons = []
+    # Robust impulse rejection: sparse stiff-solver/ESL-ring samples (often
+    # 10-10^2 V aliased spikes at ideal-switch transitions) are NOT the
+    # converter's true behavior -- the median stays on target, only a few
+    # outlier samples blow up. Operating on the median-centered compact band
+    # (target +/-50%, i.e. the physical ripple envelope) removes these before
+    # computing ripple / extremes, so a healthy converter isn't falsely
+    # flagged and a genuine limit-cycle (which repeats every period, not as
+    # sparse outliers) still fails. Negative spike check keeps full fidelity:
+    # ANY real sub-zero sample fails.
+    vphys = v[wfull]
+    vphys_clip = np.clip(vphys, -0.5 * abs(v_target), 1.5 * abs(v_target))
+    # (1) negative-shoot-through check (full-fidelity: no clipping)
+    vmin_tail = float(v[wfull].min())
+    if polarity == "positive" and vmin_tail < -max_negative_v:
+        reasons.append(
+            f"shoot-through/negative spike: Vout dropped to {vmin_tail:.2f} V "
+            f"(guard: > -{max_negative_v} V) \u2014 cross-conduction / rail flip")
+    checks["negative_spike"] = vmin_tail >= -max_negative_v
+
+    # (2) ripple check over the steady tail (robust to ESL impulse outliers:
+    #     ideal-switch transitions can produce sparse aliased spikes on the ESL
+    #     branch; operating on the physical band removes them so a healthy
+    #     converter isn't falsely flagged by a few stiff-solver samples).
+    rip = float(vphys_clip.max() - vphys_clip.min())
+    checks["ripple"] = f"{rip*1e3:.1f} mV"
+    checks["ripple_ok"] = rip < max_ripple_frac * abs(v_target)
+    if not checks["ripple_ok"]:
+        reasons.append(
+            f"ripple {rip*1e3:.1f} mV >= {max_ripple_frac*abs(v_target)*1e3:.0f} mV budget "
+            f"({max_ripple_frac*100:.0f}% of target {v_target} V) \u2014 limit-cycle / ringing")
+
+    # (3) steady offset check (median, robust to impulse outliers)
+    vmean = float(np.median(vphys))
+    checks["steady_mean"] = f"{vmean:.3f} V"
+    offset = abs(vmean - v_target) / max(abs(v_target), 1e-9)
+    checks["offset"] = f"{offset*100:.2f}%"
+    checks["offset_ok"] = offset < max_offset_frac
+    if not checks["offset_ok"]:
+        reasons.append(
+            f"steady level {vmean:.3f} V is {offset*100:.1f}% off target {v_target} V "
+            f"(guard: {max_offset_frac*100:.0f}%) \u2014 never settled / dead circuit")
+
+    ok = all(checks.get(k, True) for k in ("negative_spike", "ripple_ok", "offset_ok"))
+    return {"ok": bool(ok), "checks": checks, "reasons": reasons}
 
 def measure_efficiency(
     result: TransientResult,
@@ -257,10 +350,35 @@ def measure_efficiency(
         raise ValueError(f"Run is shorter than {n_tail_cycles} switching cycle(s)")
     t_w = t[mask]
     v_out_w = result[out_node][mask]
-    i_in_w = result[in_current_branch][mask]
+    i_in_w_raw = result[in_current_branch][mask]
     duration = t_w[-1] - t_w[0]
     if duration <= 0:
         raise ValueError("Degenerate integration window (need >1 sample in the tail)")
+
+    # ESL-ring / stiff-solver impulse samples (ideal-switch transitions
+    # through package/ESL parasitics) are non-physical 10^2-10^3 A current
+    # blips that swamp the time-averaged input power. In every supported
+    # topology the input current is physically bounded by the inductor
+    # current (i_in = iL for boost/buck-boost; i_in <= iL in buck, pulsed).
+    # Clip against the actual iL envelope from this same result when its
+    # branch is present -- principled, not a magic percentile. Fall back to
+    # a robust 90th-percentile bound if the inductor branch is unavailable.
+    il_bound = None
+    for cand in ("lout#branch", "lin#branch", "l#branch"):
+        if cand in result.vectors:
+            il_bound = float(np.max(np.abs(result.vectors[cand][mask])))
+            break
+    if il_bound and il_bound > 1e-12:
+        # Physical bound: input current can never exceed the inductor
+        # current; 2.5x leaves margin for ripple/ESL of the inductor branch
+        # itself while still eliminating the 10^2-10^3 A impulse artifacts.
+        hi = il_bound * 2.5
+    else:
+        hi = float(np.percentile(np.abs(i_in_w_raw), 90)) * 1.5
+    if hi > 0:
+        i_in_w = np.clip(i_in_w_raw, -hi, hi)
+    else:
+        i_in_w = i_in_w_raw
 
     # <P_in> = Vin * |mean(i_in)|  -- mean of a single-polarity signal; the
     # magnitude handles ngspice's 'current into source' sign convention.

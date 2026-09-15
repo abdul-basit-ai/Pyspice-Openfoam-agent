@@ -132,7 +132,7 @@ def plant_transfer(
 
 def design_type_iii(
     num: np.ndarray, den: np.ndarray, f_sw_hz: float, L: float, C: float,
-    ESR: float, R_load: float,
+    ESR: float, R_load: float, f_crossover_target: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray, float, list[float], list[float]]:
     """Design a Type III (integral + 2 zero + 2 pole) compensator.
 
@@ -148,7 +148,10 @@ def design_type_iii(
     w0 = 1.0 / math.sqrt(L * C)
     f_lc = w0 / (2 * math.pi)
     f_esr = 1.0 / (2 * math.pi * ESR * C) if ESR * C > 0 else 1e9
-    f_crossover = f_sw_hz / 10.0
+    # Target crossover: caller supplies the deterministically-clamped value
+    # (buck 0.10*f_sw; boost/buck_boost min(0.20*f_rhp, 0.05*f_sw)). It is
+    # never silently raised back to f_sw/10.
+    f_crossover = f_crossover_target if f_crossover_target else (f_sw_hz / 10.0)
 
     fz = f_lc                      # double zero cancels the LC double pole
     fp1 = max(f_esr, f_crossover * 4)  # cancel ESR zero / roll off
@@ -280,14 +283,21 @@ def analyze_control_loop(
         Dp = 1.0 - D
         f_rhp = ((Dp**2) * R_load / L) / (2 * math.pi) if topo == "boost" \
             else ((Dp**2) * R_load / (D * L)) / (2 * math.pi)
-        fsw_eff = min(fsw, 5.0 * f_rhp)  # crossover <= f_rhp/5 -> keep fsw scope
-        fsw_eff = max(fsw_eff, 1e3)
+        # Deterministic crossover clamp (task): fc <= 0.20*f_rhp AND <= 0.05*f_sw.
+        # A higher-bandwidth buck compensator reused here would push crossover
+        # past the RHP zero -> phase collapse / limit-cycle (task bug #1).
+        f_cross_rhp = 0.20 * f_rhp
+        f_cross_sw = 0.05 * fsw
+        f_cross = min(f_cross_rhp, f_cross_sw)
+        f_cross = max(f_cross, 1e3)
     else:
         f_rhp = float("inf")
-        fsw_eff = fsw
+        # Buck: fc <= min(0.10*f_sw, 0.20*f_cross_max). No RHP zero; k_cross
+        # is the standard 1/10 switching-frequency practical maximum.
+        f_cross = 0.10 * fsw
 
     gc_num, gc_den, fc, zeros_hz, poles_hz = design_type_iii(
-        num, den, fsw_eff, L, C, ESR, R_load)
+        num, den, fsw, L, C, ESR, R_load, f_crossover_target=f_cross)
     # Loop gain T = Gvd * Gc (H = 1)
     t_num = np.polymul(num, gc_num)
     t_den = np.polymul(den, gc_den)
@@ -302,18 +312,18 @@ def analyze_control_loop(
     if pm is None:
         reasons.append("no gain crossover < f_sw/2: loop does not reach 0 dB "
                        "in band (cautious but stable); verify crossover target")
-        pm = 45.0  # do not falsely fail on the comparison
-    if pm < 45.0:
+        pm = 50.0  # do not falsely fail on the comparison
+    if pm < 50.0:
         passed = False
-        reasons.append(f"phase margin {pm:.1f} deg < 45 deg target")
+        reasons.append(f"phase margin {pm:.1f} deg < 50 deg target")
     if gm is None:
         # no phase crossover to -180 deg in band => infinite gain margin
         gm = float("inf")
         reasons.append("no phase crossover to -180 deg in band: "
                        "gain margin effectively infinite (> 40 dB)")
-    if gm < 6.0:
+    if gm < 10.0:
         passed = False
-        reasons.append(f"gain margin {gm:.1f} dB < 6 dB target")
+        reasons.append(f"gain margin {gm:.1f} dB < 10 dB target")
     if passed:
         gm_repr = f"{gm:.1f}" if math.isfinite(gm) else "infinite"
         reasons.append(

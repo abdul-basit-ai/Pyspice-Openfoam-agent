@@ -2,15 +2,21 @@
 
 Loss accounting for the synchronous converter topologies Phase 3 emits
 (HS + LS MOSFET pair modeled as ideal switches with the real part's Ron,
-real DCR/ESR parasitics). Per-device, per steady-state period (user decision:
-synchronous-only, no body-diode term):
+real DCR/ESR parasitics). Per-device, per steady-state period:
 
   P_hs_cond  = <i_L² * Ron> while the HS switch conducts
   P_ls_cond  = <i_L² * Ron> while the LS switch is ON
   P_l_dcr    = <i_L² * DCR> (continuous)
-  P_sw_hs    = ½ * Vblock * I * (t_r + t_f) * fsw   (crossover model)
-  P_sw_ls    = same model, LS's commutation event
+  P_sw_hs    = ½*Vblock*I*(t_r+t_f)*fsw  +  ½*Coss*Vblock²*fsw
+               (hard-switch crossover + output-capacitance, HS only)
+  P_sw_ls    = 2*V_F*i_L*t_dead*fsw  +  Qrr*Vblock*fsw
+               (body-diode dead-time conduction + reverse recovery, LS only)
   P_gate     = Qg * V_driver * fsw per driven switch
+
+HS and LS switching are DECOUPLED (correct physics): the HS switch is the
+hard-switcher (crossover + Coss loss); the synchronous LS switch turns on with
+~0 V across it after dead time, so its hard-switch crossover is negligible and
+its loss is body-diode dead-time conduction + reverse recovery instead.
 
 Why switching loss is a model, not a waveform integral: the Phase 3 netlist
 models each MOSFET as an ideal voltage-controlled switch with Ron. v(t)·i(t)
@@ -90,6 +96,32 @@ class LossBreakdown:
     i_l_avg: float  # A, mean inductor current over the steady-state window
     i_l_peak: float  # A, peak |i_L| over the window (for Isat checks)
     notes: list[str] = field(default_factory=list)
+
+
+def efficiency_from_losses(
+    vout: float, iout: float, losses_w: float,
+) -> float:
+    """Conversion efficiency from output power and total loss.
+
+        eta = P_out / (P_out + P_loss),   P_out = |Vout| * Iout
+
+    A single normative formula (no hardcoded scaling / division). Guarantees
+    the physically-required 0 < eta <= 1, raising rather than silently
+    returning an impossible number (task assertion).
+    """
+    p_out = abs(vout) * max(iout, 0.0)
+    if p_out <= 0 or losses_w < 0:
+        raise LossExtractionError(
+            f"cannot compute efficiency: P_out={p_out:.3g} W, P_loss={losses_w:.3g} W "
+            "(need P_out>0 and P_loss>=0)"
+        )
+    eta = p_out / (p_out + losses_w)
+    if not (0.0 < eta <= 1.0 + 1e-12):
+        raise LossExtractionError(
+            f"efficiency {eta:.4f} outside (0, 1] — loss physics corrupted "
+            f"(P_out={p_out:.3g}, P_loss={losses_w:.3g})"
+        )
+    return float(eta)
 
 
 def _crossover_time(mosfet: MOSFET) -> float:
@@ -250,13 +282,30 @@ def extract_losses(
     p_ls_cond = _masked_mean_power(t, i_l**2 * ron, ls_on)
     p_dcr = _masked_mean_power(t, i_l**2 * inductor_dcr, np.ones_like(t, dtype=bool))
 
-    # --- switching loss (crossover model) ---
+    # --- switching loss: DECOUPLED HS vs LS mechanisms (task C) ---
+    # HS: hard-switching crossover + output-capacitance (Coss) charge/discharge.
     i_window = np.abs(i_l)
     i_event = float(np.mean(i_window))
     t_r = _crossover_time(mosfet)
     t_f = t_r  # symmetric first-order model; t_r+t_f = 2*t_cross
-    e_sw_per_switch = 0.5 * v_block * i_event * (t_r + t_f)
-    p_sw = e_sw_per_switch * fsw  # one turn-on + one turn-off pair per cycle
+    p_sw_hs = (0.5 * v_block * i_event * (t_r + t_f)) * fsw
+    # Coss energy: E_oss ~ 0.5*Coss*V_block^2, paid once per hard turn-on cycle.
+    # Default to a typical silicon figure if Coss is unmeasured.
+    coss = mosfet.Coss if mosfet.Coss else 500e-12
+    e_oss = 0.5 * coss * v_block**2
+    p_oss = e_oss * fsw
+    p_hs_switching = p_sw_hs + p_oss  # hard-switch + output-capacitance loss
+
+    # LS (synchronous rectifier): near-ZERO hard-switching crossover (it turns
+    # on with ~0 V across it after dead time). Its losses are body-diode
+    # conduction during dead time + reverse recovery (Qrr):
+    import pyspice_openfoam_agent.netlist.builder as _nb
+
+    t_dead = getattr(_nb, "_DEAD_TIME_DEFAULT_S", 30e-9)
+    p_ls_diode = 2.0 * mosfet.V_F * abs(i_event) * t_dead * fsw  # 2 transitions/cycle
+    qrr = mosfet.Qrr if mosfet.Qrr else 0.0
+    p_ls_rr = qrr * v_block * fsw
+    p_ls_switching = p_ls_diode + p_ls_rr  # body-diode + reverse-recovery
 
     p_gate = 2.0 * mosfet.Qg * GATE_DRIVE_V * fsw  # both switches' drivers
 
@@ -264,8 +313,8 @@ def extract_losses(
         hs_conduction=p_hs_cond,
         ls_conduction=p_ls_cond,
         inductor_dcr=p_dcr,
-        hs_switching=p_sw,
-        ls_switching=p_sw,
+        hs_switching=p_hs_switching,
+        ls_switching=p_ls_switching,
         gate_drive=p_gate,
     )
 
