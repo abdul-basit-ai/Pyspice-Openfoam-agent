@@ -47,7 +47,7 @@ RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel
 # `docker run` image also has a working install)
 COPY pyproject.toml ./
 COPY src/ ./src/
-RUN pip3 install --no-cache-dir -e . && python3 -c "import pyspice_openfoam_agent; import PySpice, foamlib, pyvista, langgraph; print('imports OK')"
+RUN pip3 install --no-cache-dir -e . && python3 -c "import pyspice_openfoam_agent; import PySpice, pyvista, langgraph  # foamlib was a ghost dep, removed 2026-09; print('imports OK')"
 
 # Entrypoint automatically initializes the OpenFOAM environment
 ENTRYPOINT ["/bin/bash", "-c", "source /usr/lib/openfoam/openfoam2406/etc/bashrc && exec \"$@\"", "--"]

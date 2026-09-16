@@ -148,6 +148,26 @@ def size(spec: Spec) -> SizingResult:
     notes = [f"Topology {topo}: duty {D:.3f}, ripple target {di_pp:.2f} A pp"]
     if topo == "buck" and D > 0.9:
         notes.append("Duty > 0.9 — check bootstrap gate-drive feasibility")
+    if not spec.topology_constraint and 0.95 <= spec.Vout / spec.Vin <= 1.05:
+        # Ambiguous band: the ratio rule picks buck_boost (the most expensive
+        # option for a near-unity ratio). Surface the multi-criteria scorer's
+        # opinion as an advisory note instead of leaving topology_select.py
+        # dead code (audit finding) — the LLM/HITL can still override.
+        try:
+            from pyspice_openfoam_agent.sizing.topology_select import recommend_topology
+            from pyspice_openfoam_agent.design.object import Requirements
+
+            rec, _ = recommend_topology(Requirements(
+                Vin=spec.Vin, Vout=spec.Vout, Iout=spec.Iout,
+                fsw_khz=spec.fsw / 1e3, ripple_v=spec.Vripple))
+            if rec != topo:
+                notes.append(
+                    f"near-unity ratio (band 0.95-1.05): multi-criteria scorer "
+                    f"recommends {rec!r} over the default {topo!r} — override "
+                    f"with an explicit topology constraint if cost/efficiency "
+                    f"priorities differ")
+        except Exception:
+            pass  # advisory only — never block sizing on the scorer
     return SizingResult(
         topology=topo,
         D=D,

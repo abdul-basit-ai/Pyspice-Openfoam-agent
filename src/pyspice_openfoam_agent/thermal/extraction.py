@@ -39,18 +39,6 @@ class FieldSummary:
     notes: list[str] = field(default_factory=list)
 
 
-def _latest_time(case: Path) -> float:
-    """Find the latest written time directory (numeric names only)."""
-    times = sorted(
-        float(d.name)
-        for d in case.iterdir()
-        if d.is_dir() and d.name.replace(".", "", 1).isdigit()
-    )
-    if not times:
-        raise ExtractionError(f"no time directories in {case} — has the solver run?")
-    return times[-1]
-
-
 def extract_full_field(case: str | Path) -> FieldSummary:
     """Read the latest time step's T field for every region via PyVista.
 
@@ -68,7 +56,6 @@ def extract_full_field(case: str | Path) -> FieldSummary:
     times = reader.time_values
     if not times:
         raise ExtractionError(f"reader found no time values in {case_path}")
-    latest = times[-1]
     latest = times[-1]
     reader.set_active_time_value(latest)
     data = reader.read()
