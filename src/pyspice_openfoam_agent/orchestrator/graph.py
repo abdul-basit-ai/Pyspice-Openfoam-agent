@@ -130,9 +130,16 @@ def make_graph(config: AgentConfig, ctx: ToolContext, client=None, mock_response
         # is attached to the final payload so a summary can never bury it.
         caveats = []
         for entry in state.get("transcript", []):
-            if entry.get("role") == "tool" and not entry.get("ok", True):
-                err = str((entry.get("result") or {}).get("error", ""))[:200]
+            if entry.get("role") != "tool":
+                continue
+            payload = entry.get("result") or {}
+            if not entry.get("ok", True):
+                err = str(payload.get("error", ""))[:200]
                 caveats.append(f"{entry.get('tool')}: {err}")
+            elif payload.get("spec_violation"):
+                # best-effort spec miss (run_spice returns ok so the pipeline
+                # continues) — still a caveat the final verdict must carry
+                caveats.append(f"{entry.get('tool')}: {payload.get('caveat', '')}"[:250])
         if caveats:
             final.setdefault("caveats", caveats)
         # record design memory (Phase 11a). Only runs that produced a thermal

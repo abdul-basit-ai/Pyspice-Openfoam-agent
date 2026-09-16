@@ -117,9 +117,9 @@ def test_suggested_charge_trim_buck_matches_volt_second_balance(lib):
     assert 0.3 <= trim <= 3.0
 
 
-def select_components_for(lib, spec, sizing):
+def select_components_for(lib, spec, sizing, **kw):
     from pyspice_openfoam_agent.netlist.selector import select_components
-    return select_components(lib, spec, sizing)
+    return select_components(lib, spec, sizing, **kw)
 
 
 # --- B2: control loop — delay lowers PM; RHP guard cannot be exceeded ---
@@ -318,3 +318,26 @@ def test_screening_passes_compliant_ripple(lib):
                sel.mosfet, sel.inductor, sel.capacitor,
                vripple_budget=spec.Vripple)
     assert not any("ripple" in r and "budget" in r for r in v.reasons)
+
+
+# --- E2: measured-ripple best-effort upsize loop ---
+
+def test_parse_bank_units():
+    from pyspice_openfoam_agent.orchestrator.tools import _parse_bank_units
+
+    assert _parse_bank_units("4x GRM31CR61E476ME15") == 4
+    assert _parse_bank_units("GRM31CR61E476ME15") == 1
+    assert _parse_bank_units("10TPB220M") == 1
+
+
+def test_cap_units_floor_forces_bigger_bank(lib):
+    """run_spice's post-measurement retry asks the selector for floor+1
+    units; the selector must honor the floor without a budget test."""
+    spec = Spec(Vin=4.5, Vout=8.0, Iout=5.0, fsw=500e3, Vripple=0.035)
+    sizing = size(spec)
+    sel2 = select_components_for(lib, spec, sizing, cap_units_floor=2)
+    assert sel2.capacitor.part_number.startswith("2x "), sel2.capacitor.part_number
+    sel5 = select_components_for(lib, spec, sizing, cap_units_floor=5)
+    assert sel5.capacitor.part_number.startswith("5x "), sel5.capacitor.part_number
+    assert sel5.capacitor.C > sel2.capacitor.C
+    assert sel5.capacitor.ESR < sel2.capacitor.ESR

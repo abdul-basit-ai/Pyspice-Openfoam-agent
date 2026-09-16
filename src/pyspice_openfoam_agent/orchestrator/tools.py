@@ -440,7 +440,16 @@ def tool_build_netlist(ctx: ToolContext, out_path: str | None = None) -> dict:
             "connectivity_valid": True}
 
 
-def tool_run_spice(ctx: ToolContext, max_cycles: float = 800) -> dict:
+def _parse_bank_units(part_number: str) -> int:
+    """Units in a (possibly banked) capacitor part number: '4x GRM...' -> 4."""
+    import re as _re
+
+    m = _re.match(r"^(\d+)x\s", part_number.strip())
+    return int(m.group(1)) if m else 1
+
+
+def tool_run_spice(ctx: ToolContext, max_cycles: float = 800,
+                   cap_upsize_retries: int = 2) -> dict:
     if ctx.netlist_path is None:
         return {"error": "call build_netlist first"}
     try:
@@ -484,9 +493,11 @@ def tool_run_spice(ctx: ToolContext, max_cycles: float = 800) -> dict:
         ctx.losses = lb  # cached for run_thermal (no duplicate simulation)
         # Spec-compliance gate: health.ok above only proves the RIG is sane
         # (its guard is 20% of Vout); the design must also meet the SPEC's
-        # ripple budget. A measured violation is a structured failure the
-        # agent has to react to (audit-run finding: a 3x ripple-spec miss
-        # was reported as a green "verified" verdict).
+        # ripple budget. A measured violation triggers a bounded CAPACITOR
+        # UPSIZE loop — re-select the bank one unit larger, rebuild, and
+        # re-simulate — because the predictive gate can be a few percent
+        # optimistic vs the real waveform (audit-run finding: 43.9 mV
+        # measured vs 40 mV budget after a passing prediction).
         ripple_budget_ok = ripple <= ctx.spec.Vripple
         # Efficiency is LOSS-BASED: eta = P_out/(P_out+P_loss). The waveform
         # measure (measure_efficiency) is loss-blind -- ideal switches cannot
@@ -499,6 +510,45 @@ def tool_run_spice(ctx: ToolContext, max_cycles: float = 800) -> dict:
                 run.result, vin=ctx.spec.Vin, in_current_branch="vin#branch",
                 out_node="out", r_load=ctx.spec.Vout / ctx.spec.Iout, fsw=ctx.spec.fsw,
             )
+        # --- capacitor upsize loop (best-effort convergence to the budget) ---
+        upsize_attempts: list[str] = []
+        while not ripple_budget_ok and len(upsize_attempts) < cap_upsize_retries:
+            units = _parse_bank_units(ctx.selected.capacitor.part_number)
+            try:
+                new_sel = select_components(ctx.library, ctx.spec, ctx.sizing,
+                                            cap_units_floor=units + 1)
+            except Exception:
+                break  # cannot upsize (no adequate part) — best effort stands
+            if new_sel.capacitor.part_number == ctx.selected.capacitor.part_number:
+                break  # upsize produced nothing new
+            prev_label = ctx.selected.capacitor.part_number
+            ctx.selected = new_sel
+            written, _lint = build_and_write(ctx.spec, ctx.sizing, ctx.selected,
+                                             ctx.netlist_path, lint=True)
+            ctx.netlist_path = written
+            trim, servo_text, servo_vout = _duty_servo(ctx)
+            write_netlist(servo_text, ctx.netlist_path)
+            run = run_until_steady_state(
+                servo_text, fsw=ctx.spec.fsw, out_node="out",
+                start_cycles=40, max_cycles=budget,
+                points_per_cycle=_points_per_cycle(int(budget)),
+                expected_level=ctx.spec.Vout,
+            )
+            if not run.steady_state.converged:
+                break  # keep the last converged result as the honest best
+            ripple = measure_output_ripple(run.result, "out", ctx.spec.fsw)
+            health = validate_transient_health(
+                run.result, "out", ctx.spec.Vout, ctx.spec.fsw,
+                polarity="positive",
+            )
+            lb = extract_losses_for(ctx, run)
+            ctx.losses = lb
+            if lb is not None and lb.losses.total > 0:
+                eff = efficiency_from_losses(ctx.spec.Vout, ctx.spec.Iout, lb.losses.total)
+            ripple_budget_ok = ripple <= ctx.spec.Vripple
+            upsize_attempts.append(
+                f"{prev_label} -> {ctx.selected.capacitor.part_number}: "
+                f"measured {ripple * 1e3:.1f} mV")
     except Exception as e:
         return {"error": f"spice run failed: {e}"}
     ctx.artifacts["spice"] = {
@@ -509,21 +559,8 @@ def tool_run_spice(ctx: ToolContext, max_cycles: float = 800) -> dict:
         "duty_trim": trim,
         "ripple_budget_V": ctx.spec.Vripple,
         "ripple_meets_spec": bool(ripple_budget_ok),
+        "cap_upsize_attempts": upsize_attempts,
     }
-    if not ripple_budget_ok:
-        return {
-            "error": (f"measured output ripple {ripple * 1e3:.1f} mV exceeds the "
-                      f"spec budget {ctx.spec.Vripple * 1e3:.1f} mV — the rig is "
-                      f"healthy but the DESIGN misses its ripple spec; select a "
-                      f"lower-ESR/larger capacitor or relax the budget"),
-            "converged": True,
-            "ripple_mV": round(ripple * 1e3, 2),
-            "ripple_budget_mV": round(ctx.spec.Vripple * 1e3, 2),
-            "spec_violation": True,
-            "health": health,
-            "efficiency": round(eff, 4),
-            "total_loss_W": round(lb.losses.total, 3) if lb else None,
-        }
     # visualizations for the UI (best-effort; never fail the tool on render)
     try:
         from pyspice_openfoam_agent.ui.visualize import draw_schematic, plot_waveforms
@@ -544,12 +581,42 @@ def tool_run_spice(ctx: ToolContext, max_cycles: float = 800) -> dict:
             ctx.artifacts["schematic_png"] = str(sch)
     except Exception:
         pass
-    return {
+    if not ripple_budget_ok:
+        # Best-effort outcome: the pipeline CONTINUES (thermal etc. still run
+        # off the final selection), and the payload carries an explicit
+        # caveat the agent must relay — no dead-end error, no silent pass.
+        caveat = (
+            f"RIPPLE SPEC NOT MET after automatic capacitor upsizing "
+            f"({' -> '.join(upsize_attempts) if upsize_attempts else 'no upsize possible'}): "
+            f"best measured {ripple * 1e3:.1f} mV vs budget "
+            f"{ctx.spec.Vripple * 1e3:.1f} mV with "
+            f"{ctx.selected.capacitor.part_number}. The design works but does "
+            f"not meet its own ripple spec — relax the budget, raise fsw, or "
+            f"add lower-ESR capacitance to the library."
+        )
+        return {
+            "converged": True,
+            "cycles_to_steady": run.n_cycles_run,
+            "ripple_mV": round(ripple * 1e3, 2),
+            "ripple_budget_mV": round(ctx.spec.Vripple * 1e3, 2),
+            "ripple_meets_spec": False,
+            "spec_violation": True,
+            "best_effort": True,
+            "caveat": caveat,
+            "cap_upsize_attempts": upsize_attempts,
+            "efficiency": round(eff, 4),
+            "total_loss_W": round(lb.losses.total, 3) if lb else None,
+            "per_device_W": {k: round(v, 3) for k, v in lb.per_device_watts.items()} if lb else {},
+            "duty_trim": round(trim, 4),
+            "servo_vout_V": round(servo_vout, 4),
+            "health": health,
+        }
+    payload = {
         "converged": run.steady_state.converged,
         "cycles_to_steady": run.n_cycles_run,
         "ripple_mV": round(ripple * 1e3, 2),
         "ripple_budget_mV": round(ctx.spec.Vripple * 1e3, 2),
-        "ripple_meets_spec": bool(ripple_budget_ok),
+        "ripple_meets_spec": True,
         "efficiency": round(eff, 4),
         "total_loss_W": round(lb.losses.total, 3) if lb else None,
         "per_device_W": {k: round(v, 3) for k, v in lb.per_device_watts.items()} if lb else {},
@@ -557,6 +624,9 @@ def tool_run_spice(ctx: ToolContext, max_cycles: float = 800) -> dict:
         "servo_vout_V": round(servo_vout, 4),
         "health": health,
     }
+    if upsize_attempts:
+        payload["cap_upsize_attempts"] = upsize_attempts
+    return payload
 
 
 def extract_losses_for(ctx: ToolContext, run):

@@ -128,7 +128,8 @@ def _banked_capacitor(base: Capacitor, n: int) -> Capacitor:
     )
 
 
-def select_capacitor(lib: Library, spec: Spec, sizing: SizingResult) -> tuple[Capacitor, list[str]]:
+def select_capacitor(lib: Library, spec: Spec, sizing: SizingResult,
+                     cap_units_floor: int = 1) -> tuple[Capacitor, list[str]]:
     """Lowest-ESR selection (among parts that clear C/V_rated with margin),
     extended with MLCC BANKING when no single part can meet the spec's ripple
     budget (audit-run finding: the tightest budgets need ESR ~2-3 mOhm at
@@ -147,6 +148,22 @@ def select_capacitor(lib: Library, spec: Spec, sizing: SizingResult) -> tuple[Ca
 
     def ripple_of(c: Capacitor) -> float:
         return _predicted_ripple_pp(spec, sizing, spec.fsw, c.C, c.ESR)[0]
+
+    # Explicit upsize request (run_spice post-measurement retry): bank the
+    # lowest-ESR adequate-voltage part with at least `cap_units_floor`
+    # units, no budget test — the caller has MEASURED a violation and wants
+    # more capacitance, not another prediction.
+    if cap_units_floor > 1:
+        pool = query_capacitors(lib, V_rated_min=vrated_req)
+        if pool:
+            base = min(pool, key=lambda c: c.ESR)
+            cand = _banked_capacitor(base, cap_units_floor)
+            notes.append(
+                f"output capacitor bank upsized after measurement: "
+                f"{cap_units_floor}x {base.part_number} "
+                f"(C_eff {cand.C * 1e6:.0f} uF, ESR_eff {cand.ESR * 1e3:.2f} mOhm)"
+            )
+            return cand, notes
 
     hits = query_capacitors(lib, C_min=C_req, V_rated_min=vrated_req)
     best_single = min(hits, key=lambda c: c.ESR) if hits else None
@@ -198,11 +215,13 @@ def select_capacitor(lib: Library, spec: Spec, sizing: SizingResult) -> tuple[Ca
     return best, notes
 
 
-def select_components(lib: Library, spec: Spec, sizing: SizingResult) -> SelectedComponents:
+def select_components(lib: Library, spec: Spec, sizing: SizingResult,
+                      cap_units_floor: int = 1) -> SelectedComponents:
     """Run all three selectors and collect their notes into one result."""
     mosfet = select_mosfet(lib, spec, sizing)
     inductor = select_inductor(lib, sizing)
-    capacitor, cap_notes = select_capacitor(lib, spec, sizing)
+    capacitor, cap_notes = select_capacitor(lib, spec, sizing,
+                                            cap_units_floor=cap_units_floor)
 
     notes = list(cap_notes)
     notes.append(

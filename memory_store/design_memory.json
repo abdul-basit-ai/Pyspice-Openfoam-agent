@@ -593,6 +593,44 @@
         "ripple_ratio": 0.3
       }
     },
+    "fcc4526f465c0f41": {
+      "attempts": [
+        {
+          "best_config": {
+            "capacitor": "3x GRM31CR61E476ME15",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-16T21:16:15+00:00",
+          "outcome": {
+            "converged": true,
+            "tj_max_k": 347.19488,
+            "tj_per_device_C": {
+              "board": 73.62,
+              "hs_mosfet": 74.04,
+              "inductor": 62.17,
+              "ls_mosfet": 66.28
+            },
+            "v_in_m_s": 1.0,
+            "validation": {
+              "energy_balance": "PASS (R_eff = 8.75 K/W, plausible [0.5, 100.0] K/W)",
+              "log_available": "PASS",
+              "nan_residuals": "PASS",
+              "residual_trend": "PASS (h: 7.11e-04 vs 4.82e-03 over last 500 iters)",
+              "tj_bounds": "PASS"
+            }
+          }
+        }
+      ],
+      "spec": {
+        "Iout": 5.0,
+        "Vin": 4.0,
+        "Vout": 8.5,
+        "Vripple": 0.03,
+        "fsw_khz": 650.0,
+        "ripple_ratio": 0.3
+      }
+    },
     "fd1e78938f2d19d0": {
       "attempts": [
         {
