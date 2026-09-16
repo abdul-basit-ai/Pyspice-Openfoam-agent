@@ -136,9 +136,10 @@ def make_graph(config: AgentConfig, ctx: ToolContext, client=None, mock_response
             if not entry.get("ok", True):
                 err = str(payload.get("error", ""))[:200]
                 caveats.append(f"{entry.get('tool')}: {err}")
-            elif payload.get("spec_violation"):
-                # best-effort spec miss (run_spice returns ok so the pipeline
-                # continues) — still a caveat the final verdict must carry
+            elif payload.get("caveat"):
+                # best-effort miss (ripple spec, control-loop margins, ET
+                # convergence, rig health): the pipeline continued with the
+                # closest achievable result — the final verdict must carry it
                 caveats.append(f"{entry.get('tool')}: {payload.get('caveat', '')}"[:250])
         if caveats:
             final.setdefault("caveats", caveats)

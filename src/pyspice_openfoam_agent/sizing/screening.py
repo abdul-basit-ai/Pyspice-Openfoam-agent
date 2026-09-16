@@ -106,13 +106,18 @@ def screen(
         v_esr_pp = capacitor.ESR * i_cap_pp
         v_pp_pred = v_cap_pp + v_esr_pp
         if v_pp_pred > vripple_budget:
-            reasons.append(
+            # WARNING, not rejection (best-effort policy): the measured gate in
+            # run_spice plus its automatic capacitor-upsize loop converge to
+            # the closest achievable ripple with REAL numbers — a prediction
+            # must not pre-empt that. Safety screens (Vds/Isat/V_rated/Tj)
+            # below remain hard rejections.
+            warnings.append(
                 f"predicted output ripple {v_pp_pred * 1e3:.1f} mV pp exceeds the "
                 f"spec budget {vripple_budget * 1e3:.1f} mV "
                 f"(ESR term {v_esr_pp * 1e3:.1f} mV from {capacitor.ESR * 1e3:.1f} mOhm "
                 f"x {i_cap_pp:.2f} A cap-current swing + capacitive "
-                f"{v_cap_pp * 1e3:.1f} mV) — select a lower-ESR / larger capacitor "
-                f"or relax the budget")
+                f"{v_cap_pp * 1e3:.1f} mV) — SPICE will measure and the upsize "
+                f"loop will converge to the closest achievable")
         elif v_pp_pred > 0.8 * vripple_budget:
             warnings.append(
                 f"predicted output ripple {v_pp_pred * 1e3:.1f} mV pp is within 20% "

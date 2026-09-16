@@ -274,7 +274,26 @@ them as red banners above the summary — a summary can no longer bury a
 failure. (Also: Streamlit caches imported modules — restart the `pyspice-ui`
 container after code edits.)
 
-## 7. Known limitations (documented, not changed)
+## 7. Best-effort contract (system-wide, user-directed)
+
+The user directive "if it doesn't reach perfect, return the closest result
+honestly" is now the pipeline-wide contract. Every stage tries bounded,
+deterministic convergence first and degrades to the closest achievable
+result with an explicit caveat — never a silent pass, never a dead end:
+
+| stage | convergence lever | closest-achievable fallback |
+|---|---|---|
+| run_spice ripple | duty servo -> capacitor banking -> auto upsize (2 retries, re-simulated each time) | best-effort success + caveat (pipeline continues) |
+| run_spice rig health | — | payload caveat with the health reasons |
+| control loop | bounded crossover search (phase-targeted Type III) | best margins found + caveat naming the miss |
+| electro-thermal | adaptively damped fixed point | last damped estimate + "thermally suspect" caveat |
+| CHT thermal | auto-triggered Phase 10 mitigation (airflow/reselect/fsw, 3 solves) when Tj > limit | best mitigated config + caveat |
+| screening | MLCC banking at selection | ripple-budget violations demoted to warnings (the measured gate decides); safety screens (Vds/Isat/V_rated/Tj) remain hard rejections |
+
+`graph.finalize` collects every caveat (and every tool error) into
+`final.caveats`; the UI renders each as a red banner above the summary.
+
+## 8. Known limitations (documented, not changed)
 
 - buck_boost switching loss uses `max(Vin, Vout)` as blocking voltage for all
   four dies (the output pair blocks only Vout) — conservative.

@@ -84,7 +84,10 @@ def test_electro_thermal_zero_airflow_is_honored(tmp_path, lib, monkeypatch):
 
 # --- A4: electro-thermal non-convergence reads as a tool failure ---
 
-def test_electro_thermal_nonconvergence_is_error(tmp_path, lib, monkeypatch):
+def test_electro_thermal_nonconvergence_is_best_effort_with_caveat(tmp_path, lib, monkeypatch):
+    """Best-effort contract: non-convergence returns the closest (last damped)
+    estimate with an explicit caveat — the pipeline continues, and finalize
+    surfaces the caveat; it is never silently accepted."""
     ctx = _buck_ctx(tmp_path, lib)
     from pyspice_openfoam_agent.thermal import electro_thermal as et
     from pyspice_openfoam_agent.thermal.electro_thermal import ConvergenceResult
@@ -93,8 +96,10 @@ def test_electro_thermal_nonconvergence_is_error(tmp_path, lib, monkeypatch):
         converged=False, final_tj_c=99.0, iterations=8,
         reason="FAILED (test stub)"))
     res = dispatch(ctx, "electro_thermal_converge", {})
-    assert res.ok is False
-    assert "error" in res.payload
+    assert res.ok is True
+    assert res.payload["converged"] is False
+    assert res.payload["best_effort"] is True
+    assert "did NOT converge" in res.payload["caveat"]
 
 
 # --- B1: suggested_charge_trim — buck analytic equilibrium near design point ---
@@ -284,8 +289,11 @@ def test_screening_rejects_ripple_budget_violation(lib):
     v = screen(spec.Vin, spec.Vout, spec.Iout, spec.fsw, sizing,
                sel.mosfet, sel.inductor, sel.capacitor,
                vripple_budget=spec.Vripple)
-    assert v.rejected
-    assert any("ripple" in r and "budget" in r for r in v.reasons), v.reasons
+    # best-effort policy: a ripple prediction violation WARNS (SPICE measures
+    # and the upsize loop converges to the closest achievable); it does not
+    # pre-empt the measured gate
+    assert not v.rejected
+    assert any("ripple" in w and "budget" in w for w in v.warnings), v.warnings
 
 
 def test_capacitor_banking_meets_tight_ripple_budget(lib):

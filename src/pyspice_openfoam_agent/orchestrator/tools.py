@@ -594,6 +594,8 @@ def tool_run_spice(ctx: ToolContext, max_cycles: float = 800,
             f"not meet its own ripple spec — relax the budget, raise fsw, or "
             f"add lower-ESR capacitance to the library."
         )
+        if not health.get("ok"):
+            caveat += " | rig health flagged: " + "; ".join(health.get("reasons", []))
         return {
             "converged": True,
             "cycles_to_steady": run.n_cycles_run,
@@ -626,6 +628,10 @@ def tool_run_spice(ctx: ToolContext, max_cycles: float = 800,
     }
     if upsize_attempts:
         payload["cap_upsize_attempts"] = upsize_attempts
+    if not health.get("ok"):
+        # closest result still returned; the failure is stated, not hidden
+        payload["caveat"] = (
+            "rig health flagged: " + "; ".join(health.get("reasons", [])))
     return payload
 
 
@@ -715,6 +721,55 @@ def tool_run_thermal(ctx: ToolContext, v_in_m_s: float | None = None) -> dict:
         return {"error": "CHT result failed validation: " + "; ".join(vv.reasons),
                 "converged": False, "validation": vv.checks,
                 "tj_per_device_C": tj_c}
+    # Best-effort thermal compliance (Phase 10): if the solved Tj exceeds the
+    # device limit, AUTOMATICALLY run the bounded mitigation loop (airflow ->
+    # reselection -> fsw, 3 CHT solves) instead of handing the problem to the
+    # agent. If mitigation cannot bring Tj under the limit, the best config
+    # found is reported with an explicit caveat.
+    mitigation_note = None
+    thermal_caveat = None
+    if result.tj_max is not None and result.tj_max > ctx.tj_limit_k:
+        try:
+            from pyspice_openfoam_agent.thermal.mitigation import (
+                MitigationError, run_mitigation,
+            )
+
+            outcome = run_mitigation(
+                ctx.library, ctx.spec, ctx.selected.mosfet,
+                tj_limit_k=ctx.tj_limit_k,
+                evaluate=_mitigation_evaluate(ctx),
+                baseline_tj_k=result.tj_max,
+                baseline_v_in=v_in, max_solves=3,
+            )
+            ctx.artifacts["mitigation"] = {
+                "feasible": outcome.feasible,
+                "best_tj_max_k": outcome.best_tj_max_k,
+                "best_config": outcome.best_description,
+                "iterations": outcome.iterations_used,
+                "auto_triggered": True,
+            }
+            mitigation_note = (
+                f"{'FEASIBLE' if outcome.feasible else 'exhausted'}: "
+                f"{outcome.best_description} -> Tj "
+                f"{outcome.best_tj_max_k - 273.15:.1f} degC "
+                f"({outcome.iterations_used} extra CHT solves)")
+            if not outcome.feasible:
+                thermal_caveat = (
+                    f"THERMAL LIMIT EXCEEDED and auto-mitigation could not fix "
+                    f"it: baseline Tj {result.tj_max - 273.15:.1f} degC vs limit "
+                    f"{ctx.tj_limit_k - 273.15:.0f} degC; best mitigated config: "
+                    f"{outcome.best_description} at "
+                    f"{outcome.best_tj_max_k - 273.15:.1f} degC.")
+        except MitigationError as e:
+            mitigation_note = f"auto-mitigation aborted: {e}"
+            thermal_caveat = (
+                f"THERMAL LIMIT EXCEEDED ({result.tj_max - 273.15:.1f} degC vs "
+                f"{ctx.tj_limit_k - 273.15:.0f} degC) and auto-mitigation "
+                f"failed: {e}")
+    elif result.tj_max is not None:
+        mitigation_note = (
+            f"not needed: Tj {result.tj_max - 273.15:.1f} degC within the "
+            f"{ctx.tj_limit_k - 273.15:.0f} degC limit")
     # thermal PNG(s) for the UI (best-effort; needs OSMesa in the image).
     # Run each in a SUBPROCESS with a hard timeout: `pv.Plotter(off_screen=True)`
     # on a headless container without DISPLAY/OSMesa BLOCKS on GL init rather
@@ -762,14 +817,20 @@ def tool_run_thermal(ctx: ToolContext, v_in_m_s: float | None = None) -> dict:
         pass  # headless render hung — degrade gracefully, keep the run moving
     except Exception:
         pass
-    return {
+    payload = {
         "converged": bool(result.converged and vv.valid),
         "validated": vv.valid,
         "tj_per_device_C": tj_c,
         "tj_max_C": round(result.tj_max - 273.15, 2) if result.tj_max else None,
+        "tj_limit_C": round(ctx.tj_limit_k - 273.15, 1),
         "relaxation_level": result.relaxation_level,
+        "mitigation": mitigation_note,
         "case_dir": str(cp.root),
     }
+    if thermal_caveat:
+        payload["best_effort"] = True
+        payload["caveat"] = thermal_caveat
+    return payload
 
 
 def tj_per_device_C(result) -> dict:
@@ -777,36 +838,19 @@ def tj_per_device_C(result) -> dict:
     return {k: round(v - 273.15, 2) for k, v in result.tj_per_device.items()}
 
 
-def tool_mitigate_thermal(ctx: ToolContext, tj_limit_c: float | None = None,
-                          v_in_m_s: float | None = None) -> dict:
-    """Phase 10 mitigation: when the baseline CHT solve violates the Tj limit,
-    escalate through the ordered levers (airflow -> component reselection ->
-    fsw reduction, cost order) with a bounded CHT-solve budget. Each candidate
-    re-enters the REAL pipeline (sizing -> selection -> SPICE -> CHT) on a
-    child context, so the reported Tj comes from the same physics as the
-    baseline. Requires run_spice + run_thermal first (needs a baseline Tj)."""
+def _mitigation_evaluate(ctx: ToolContext):
+    """Rebuild-and-solve callback for the Phase 10 mitigation loop: each
+    candidate re-enters the REAL pipeline (sizing -> selection -> SPICE ->
+    CHT) on a child context, so the reported Tj comes from the same physics
+    as the baseline."""
     import itertools
 
-    from pyspice_openfoam_agent.thermal.mitigation import MitigationError, run_mitigation
+    from pyspice_openfoam_agent.thermal.mitigation import MitigationError
 
-    if ctx.selected is None or ctx.sizing is None or ctx.spec is None:
-        return {"error": "size/select first (mitigation re-enters the pipeline)"}
-    baseline_tj_k = ctx.artifacts.get("thermal", {}).get("tj_max_k")
-    if baseline_tj_k is None:
-        return {"error": "call run_thermal first — mitigation needs a baseline CHT Tj"}
-    tj_limit_k = ctx.tj_limit_k if tj_limit_c is None else float(tj_limit_c) + 273.15
-    if baseline_tj_k <= tj_limit_k:
-        return {
-            "feasible": True, "tj_max_C": round(baseline_tj_k - 273.15, 2),
-            "note": f"baseline Tj already within the {tj_limit_k - 273.15:.0f} degC "
-                    "limit — no mitigation needed",
-        }
-
-    child_counter = itertools.count(1)
+    counter = itertools.count(1)
 
     def evaluate(v_in: float, mosfet, fsw: float):
-        """Rebuild-and-solve one candidate through the real tool functions."""
-        n = next(child_counter)
+        n = next(counter)
         child = ToolContext(
             run_dir=Path(ctx.run_dir) / f"mitigation_{n}",
             library=ctx.library, v_in_default=ctx.v_in_default,
@@ -841,6 +885,33 @@ def tool_mitigate_thermal(ctx: ToolContext, tj_limit_c: float | None = None,
                 f"fsw={fsw / 1e3:.0f} kHz")
         return th["tj_max_C"] + 273.15, desc, {"run_dir": str(child.run_dir)}
 
+    return evaluate
+
+
+def tool_mitigate_thermal(ctx: ToolContext, tj_limit_c: float | None = None,
+                          v_in_m_s: float | None = None) -> dict:
+    """Phase 10 mitigation: when the baseline CHT solve violates the Tj limit,
+    escalate through the ordered levers (airflow -> component reselection ->
+    fsw reduction, cost order) with a bounded CHT-solve budget. Each candidate
+    re-enters the REAL pipeline (sizing -> selection -> SPICE -> CHT) on a
+    child context, so the reported Tj comes from the same physics as the
+    baseline. Requires run_spice + run_thermal first (needs a baseline Tj)."""
+    from pyspice_openfoam_agent.thermal.mitigation import MitigationError, run_mitigation
+
+    if ctx.selected is None or ctx.sizing is None or ctx.spec is None:
+        return {"error": "size/select first (mitigation re-enters the pipeline)"}
+    baseline_tj_k = ctx.artifacts.get("thermal", {}).get("tj_max_k")
+    if baseline_tj_k is None:
+        return {"error": "call run_thermal first — mitigation needs a baseline CHT Tj"}
+    tj_limit_k = ctx.tj_limit_k if tj_limit_c is None else float(tj_limit_c) + 273.15
+    if baseline_tj_k <= tj_limit_k:
+        return {
+            "feasible": True, "tj_max_C": round(baseline_tj_k - 273.15, 2),
+            "note": f"baseline Tj already within the {tj_limit_k - 273.15:.0f} degC "
+                    "limit — no mitigation needed",
+        }
+
+    evaluate = _mitigation_evaluate(ctx)
     try:
         outcome = run_mitigation(
             ctx.library, ctx.spec, ctx.selected.mosfet,
@@ -890,7 +961,7 @@ def tool_analyze_control_loop(ctx: ToolContext, control_law: str = "voltage") ->
         "gain_margin_db": v.gain_margin_db, "crossover_hz": v.crossover_hz,
         "compensator": v.compensator, "reasons": v.reasons,
     }
-    return {
+    payload = {
         "passed": v.passed,
         "phase_margin_deg": v.phase_margin_deg,
         "gain_margin_db": v.gain_margin_db,
@@ -900,6 +971,21 @@ def tool_analyze_control_loop(ctx: ToolContext, control_law: str = "voltage") ->
         "compensator_poles_hz": v.compensator_poles_hz,
         "reasons": v.reasons,
     }
+
+    if not v.passed:
+        # best-effort contract: the bounded crossover search already returned
+        # the closest achievable design; report the miss as a caveat instead
+        # of a dead end
+        payload["best_effort"] = True
+        payload["caveat"] = (
+            "control-loop margins miss targets after the bounded crossover "
+            "search (closest achieved: PM "
+            + (f"{v.phase_margin_deg:.1f} deg" if v.phase_margin_deg is not None else "n/a")
+            + ", GM "
+            + (f"{v.gain_margin_db:.1f} dB" if v.gain_margin_db is not None else "infinite")
+            + " at fc ~"
+            + f"{v.crossover_hz / 1e3:.1f} kHz) — reasons: " + "; ".join(v.reasons))
+    return payload
 
 
 def tool_electro_thermal_converge(ctx: ToolContext, v_in_m_s: float | None = None) -> dict:
@@ -931,15 +1017,18 @@ def tool_electro_thermal_converge(ctx: ToolContext, v_in_m_s: float | None = Non
         "note": r.reason,
     }
     if not r.converged:
-        # Non-convergence MUST read as a tool failure to the ReAct loop — a
-        # converged=False payload with no error key was dispatched as ok=True
-        # and silently accepted the last (unconverged) iterate (audit fix;
-        # electro_thermal.converge's own docstring requires the caller not to
-        # do this).
-        payload["error"] = (
-            f"electro-thermal fixed point did not converge in {r.iterations} "
-            f"iterations: {r.reason}"
-        )
+        # Best-effort contract (revises the earlier hard-failure policy): the
+        # last damped iterate IS the closest achievable estimate for this
+        # design, so return it with an explicit caveat instead of a dead-end
+        # error — but never silently: the caveat flows to final.caveats and
+        # the UI (electro_thermal.converge's docstring forbids silent
+        # acceptance; this is loud, not silent).
+        payload["best_effort"] = True
+        payload["caveat"] = (
+            f"electro-thermal fixed point did NOT converge in {r.iterations} "
+            f"iterations: {r.reason}. The reported Tj is the closest "
+            f"achievable estimate, not a converged value — treat the design "
+            f"as thermally suspect (likely runaway: loop gain >= 1).")
     return payload
 
 
