@@ -120,6 +120,44 @@
         "ripple_ratio": 0.3
       }
     },
+    "22c175f51996a5ee": {
+      "attempts": [
+        {
+          "best_config": {
+            "capacitor": "10TPB220M",
+            "inductor": "XAL5030-222ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-16T20:49:13+00:00",
+          "outcome": {
+            "converged": true,
+            "tj_max_k": 338.00749,
+            "tj_per_device_C": {
+              "board": 64.52,
+              "hs_mosfet": 64.86,
+              "inductor": 55.62,
+              "ls_mosfet": 62.02
+            },
+            "v_in_m_s": 1.0,
+            "validation": {
+              "energy_balance": "PASS (R_eff = 8.52 K/W, plausible [0.5, 100.0] K/W)",
+              "log_available": "PASS",
+              "nan_residuals": "PASS",
+              "residual_trend": "PASS (h: 7.89e-04 vs 4.82e-03 over last 500 iters)",
+              "tj_bounds": "PASS"
+            }
+          }
+        }
+      ],
+      "spec": {
+        "Iout": 5.0,
+        "Vin": 3.0,
+        "Vout": 6.0,
+        "Vripple": 0.03,
+        "fsw_khz": 700.0,
+        "ripple_ratio": 0.25
+      }
+    },
     "3d6a008faf1ec08e": {
       "attempts": [
         {
@@ -553,6 +591,44 @@
         "Vripple": 0.05,
         "fsw_khz": 600.0,
         "ripple_ratio": 0.3
+      }
+    },
+    "fd1e78938f2d19d0": {
+      "attempts": [
+        {
+          "best_config": {
+            "capacitor": "10TPB220M",
+            "inductor": "XAL1010-472ME",
+            "mosfet": "BSC014N04LS"
+          },
+          "date": "2026-09-16T20:32:48+00:00",
+          "outcome": {
+            "converged": true,
+            "tj_max_k": 328.10173,
+            "tj_per_device_C": {
+              "board": 54.7,
+              "hs_mosfet": 54.95,
+              "inductor": 49.09,
+              "ls_mosfet": 51.09
+            },
+            "v_in_m_s": 1.0,
+            "validation": {
+              "energy_balance": "PASS (R_eff = 8.56 K/W, plausible [0.5, 100.0] K/W)",
+              "log_available": "PASS",
+              "nan_residuals": "PASS",
+              "residual_trend": "PASS (h: 6.50e-04 vs 4.82e-03 over last 500 iters)",
+              "tj_bounds": "PASS"
+            }
+          }
+        }
+      ],
+      "spec": {
+        "Iout": 5.0,
+        "Vin": 4.5,
+        "Vout": 8.0,
+        "Vripple": 0.035,
+        "fsw_khz": 500.0,
+        "ripple_ratio": 0.35
       }
     }
   }

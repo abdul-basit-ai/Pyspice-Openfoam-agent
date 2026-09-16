@@ -158,7 +158,8 @@ def run_topology(name: str, case: dict, do_thermal: bool, root: Path) -> Report:
     if ctx.sizing is not None and ctx.selected is not None:
         try:
             verdict = screen(req.Vin, req.Vout, req.Iout, req.fsw_khz * 1e3, ctx.sizing,
-                             ctx.selected.mosfet, ctx.selected.inductor, ctx.selected.capacitor)
+                             ctx.selected.mosfet, ctx.selected.inductor, ctx.selected.capacitor,
+                             vripple_budget=req.ripple_v)
             rep.stage(not verdict.rejected, "fast_screening",
                       f"rejected={verdict.rejected} warnings={len(verdict.warnings)}"
                       + ("; " + "; ".join(verdict.warnings) if verdict.warnings else ""))

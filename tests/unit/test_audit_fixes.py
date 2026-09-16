@@ -268,3 +268,53 @@ def test_reduced_order_losses_vblock(lib):
     lo, _ = reduced_order_losses(mosfet, 2.0, 500e3, v_block=12.0)
     hi, _ = reduced_order_losses(mosfet, 2.0, 500e3, v_block=48.0)
     assert hi > lo  # 48 V design must not be ranked on 12 V switching loss
+
+
+# --- E1: ripple-vs-spec-budget gate (the 3x ripple-spec miss audit finding) ---
+
+def test_screening_rejects_ripple_budget_violation(lib):
+    """The ripple gate: an 8 mV budget at a 10 A cap-current swing is beyond
+    even an 8-unit MLCC bank (~14 mV predicted) — screening must reject it
+    honestly instead of shipping a bank that misses the spec."""
+    from pyspice_openfoam_agent.sizing.screening import screen
+
+    spec = Spec(Vin=3.0, Vout=6.0, Iout=5.0, fsw=700e3, Vripple=0.008)
+    sizing = size(spec)
+    sel = select_components_for(lib, spec, sizing)
+    v = screen(spec.Vin, spec.Vout, spec.Iout, spec.fsw, sizing,
+               sel.mosfet, sel.inductor, sel.capacitor,
+               vripple_budget=spec.Vripple)
+    assert v.rejected
+    assert any("ripple" in r and "budget" in r for r in v.reasons), v.reasons
+
+
+def test_capacitor_banking_meets_tight_ripple_budget(lib):
+    """The audit-run finding: 4.5->8 V boost, 35 mV budget — best single bulk
+    part (10 mOhm POSCAP) predicted 108.8 mV. The selector must now build an
+    MLCC bank (C adds, ESR divides) that meets the budget, and screening
+    must pass it."""
+    from pyspice_openfoam_agent.sizing.screening import screen
+
+    spec = Spec(Vin=4.5, Vout=8.0, Iout=5.0, fsw=500e3, Vripple=0.035)
+    sizing = size(spec)
+    sel = select_components_for(lib, spec, sizing)
+    assert sel.capacitor.part_number.startswith("4x "), sel.capacitor.part_number
+    assert sel.capacitor.C >= 1.2 * sizing.C_min
+    v = screen(spec.Vin, spec.Vout, spec.Iout, spec.fsw, sizing,
+               sel.mosfet, sel.inductor, sel.capacitor,
+               vripple_budget=spec.Vripple)
+    assert not any("ripple" in r and "budget" in r for r in v.reasons)
+
+
+def test_screening_passes_compliant_ripple(lib):
+    """A spec with a comfortable budget must NOT be rejected by the ripple
+    gate (the smoke-case designs keep passing)."""
+    from pyspice_openfoam_agent.sizing.screening import screen
+
+    spec = Spec(Vin=12.0, Vout=5.0, Iout=3.0, fsw=500e3, Vripple=0.05)
+    sizing = size(spec)
+    sel = select_components_for(lib, spec, sizing)
+    v = screen(spec.Vin, spec.Vout, spec.Iout, spec.fsw, sizing,
+               sel.mosfet, sel.inductor, sel.capacitor,
+               vripple_budget=spec.Vripple)
+    assert not any("ripple" in r and "budget" in r for r in v.reasons)

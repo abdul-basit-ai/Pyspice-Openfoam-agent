@@ -59,7 +59,11 @@ def _find_tutorial_case() -> Path:
         p = Path(base) / TUTORIAL_REL
         if p.is_dir():
             return p
-    raise CaseBuildError(f"tutorial case {TUTORIAL_REL} not found in container")
+    raise CaseBuildError(
+        f"tutorial case {TUTORIAL_REL} not found — the CHT tier requires the "
+        "OpenFOAM v2406 environment (docker-agent image). On a plain host this "
+        "stage is expected to fail; run the pipeline/pipeline UI inside the "
+        "container for the full CHT solve (see README).")
 
 
 def _tutorial_region(src_root: Path, kind: str) -> Path:

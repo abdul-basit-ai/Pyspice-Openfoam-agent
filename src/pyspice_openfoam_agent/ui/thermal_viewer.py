@@ -28,12 +28,15 @@ except Exception:  # pragma: no cover
     pv = None
 
 
-def _solid_regions(case: Path, limit_cells: int = 60_000):
+def _solid_regions(case: Path, limit_cells: int = 400_000):
     """Extract {region: (points, faces, T)} for the solid regions + the board,
     decimated to `limit_cells` total so the viewer stays light.
 
     Opens the OpenFOAM case through PyVista's reader (same source of truth as
     the scalar summary). Returns a dict plus a min/max T for the colourbar.
+    Budgets are generous: the interactive 3D viewer (WebGL) handles hundreds
+    of thousands of triangles on any modern GPU, and the old 60k cap visibly
+    faceted the temperature field (user-visible quality issue).
     """
     if pv is None:
         raise RuntimeError("pyvista not available")
@@ -65,7 +68,7 @@ def _solid_regions(case: Path, limit_cells: int = 60_000):
             surf = mesh
         if surf.n_cells > limit_cells // 4:
             try:
-                surf = surf.decimate_pro(0.6)  # coarse downsampling, keep shape
+                surf = surf.decimate_pro(0.85)  # gentle downsampling, keep shape
             except Exception:
                 pass
         pts = np.asarray(surf.points)
@@ -98,7 +101,7 @@ def render_multiview_annotated(case: str | Path, out_png: str | Path,
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
     title_map = {"iso": "Isometric", "top": "Top", "front": "Front", "side": "Side"}
     for ax, (view, vec) in zip(axes.ravel(), views):
-        plotter = pv.Plotter(off_screen=True, window_size=[520, 420])
+        plotter = pv.Plotter(off_screen=True, window_size=[760, 600])
         for name, r in regions.items():
             if len(r["faces"]) == 0:
                 continue
@@ -120,7 +123,7 @@ def render_multiview_annotated(case: str | Path, out_png: str | Path,
         try:
             img = plotter.screenshot(return_img=True)
         except Exception:
-            img = np.zeros((420, 520, 3), np.uint8)
+            img = np.zeros((600, 760, 3), np.uint8)
         plotter.close()
         ax.imshow(img)
         ax.set_title(title_map[view], fontsize=12)
@@ -134,7 +137,7 @@ def render_multiview_annotated(case: str | Path, out_png: str | Path,
 
     out = Path(out_png)
     out.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out, dpi=120, bbox_inches="tight")
+    fig.savefig(out, dpi=140, bbox_inches="tight")
     plt.close(fig)
     return out
 
@@ -166,17 +169,23 @@ def export_3d_html(case: str | Path, out_html: str | Path,
             "tmin": float(t_.min()), "tmax": float(t_.max()),
         })
 
-    palette = "inferno"
-    # ~48 colours sampled from inferno for the colourbar
-    col = np.array([
-        [0.001462, 0.000466, 0.013866], [0.015976, 0.009463, 0.095488],
-        [0.081192, 0.084121, 0.246326], [0.255950, 0.172684, 0.434130],
-        [0.458396, 0.194535, 0.516350], [0.616332, 0.211601, 0.525331],
-        [0.745411, 0.264597, 0.477371], [0.828281, 0.352701, 0.389514],
-        [0.867400, 0.452174, 0.300378], [0.838992, 0.573871, 0.211765],
-        [0.782788, 0.700485, 0.223418], [0.728458, 0.827532, 0.324450],
-        [0.694067, 0.950843, 0.503174],
-    ], np.float32) * 255
+    # 64-sample inferno ramp: the old 13-colour palette banding was visible
+    # on the smooth temperature gradients the CHT solves produce.
+    try:
+        import matplotlib.cm as cm
+
+        col = (np.array([cm.get_cmap("inferno")(i / 63.0)[:3] for i in range(64)],
+                        np.float32) * 255)
+    except Exception:
+        col = np.array([
+            [0.001462, 0.000466, 0.013866], [0.015976, 0.009463, 0.095488],
+            [0.081192, 0.084121, 0.246326], [0.255950, 0.172684, 0.434130],
+            [0.458396, 0.194535, 0.516350], [0.616332, 0.211601, 0.525331],
+            [0.745411, 0.264597, 0.477371], [0.828281, 0.352701, 0.389514],
+            [0.867400, 0.452174, 0.300378], [0.838992, 0.573871, 0.211765],
+            [0.782788, 0.700485, 0.223418], [0.728458, 0.827532, 0.324450],
+            [0.694067, 0.950843, 0.503174],
+        ], np.float32) * 255
 
     labels = json.dumps([{"name": m["name"], "tmin": m["tmin"], "tmax": m["tmax"]} for m in meshes])
 
@@ -237,12 +246,21 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x131722);
 const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 1000);
 camera.position.set(2.2, 1.8, 2.4);
-const renderer = new THREE.WebGLRenderer({{ antialias:true }});
+const renderer = new THREE.WebGLRenderer({{ antialias:true, powerPreference:'high-performance' }});
 renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(devicePixelRatio);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 document.getElementById('app').appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0,0,0);
+controls.enableDamping = true;        // smooth inertial orbit/zoom
+controls.dampingFactor = 0.08;
+controls.zoomSpeed = 1.2;
+controls.minDistance = 0.2;           // zoom IN close to a die
+controls.maxDistance = 40;            // zoom OUT to the whole board
+const HOME = {{ pos: camera.position.clone(), target: controls.target.clone() }};
+addEventListener('dblclick', () => {{   // double-click: reset view
+  camera.position.copy(HOME.pos); controls.target.copy(HOME.target);
+}});
 
 function tJet(t) {{
   const u = Math.min(1, Math.max(0, (t-TRANGE[0])/(TRANGE[1]-TRANGE[0])));

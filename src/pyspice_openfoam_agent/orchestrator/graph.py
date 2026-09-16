@@ -124,6 +124,17 @@ def make_graph(config: AgentConfig, ctx: ToolContext, client=None, mock_response
     def finalize(state: AgentState) -> dict:
         final = dict(state.get("final") or {})
         final.setdefault("artifacts", ctx.artifacts if ctx else {})
+        # Verdict integrity (audit finding: the agent OBSERVED a ripple-spec
+        # violation error, continued, and still summarized the design as
+        # "meets all requirements"). Every tool failure seen during the run
+        # is attached to the final payload so a summary can never bury it.
+        caveats = []
+        for entry in state.get("transcript", []):
+            if entry.get("role") == "tool" and not entry.get("ok", True):
+                err = str((entry.get("result") or {}).get("error", ""))[:200]
+                caveats.append(f"{entry.get('tool')}: {err}")
+        if caveats:
+            final.setdefault("caveats", caveats)
         # record design memory (Phase 11a). Only runs that produced a thermal
         # outcome are recorded: the old path appended every run unconditionally,
         # so the store accumulated `"outcome": {}` noise entries that
@@ -159,16 +170,47 @@ def make_graph(config: AgentConfig, ctx: ToolContext, client=None, mock_response
 
 
 
+def _load_dotenv() -> None:
+    """Populate os.environ from a repo-root `.env` (no override of real env
+    vars). The documented workflow is "copy .env.example -> .env", but nothing
+    used to LOAD that file on the host — live-agent mode failed with
+    'OPENROUTER_API_KEY not set in environment' even with a correct .env
+    (audit fix: .env is now honored; python-dotenv deliberately not added as
+    a dependency for ten lines of parsing)."""
+    candidates = [Path.cwd() / ".env", Path(__file__).resolve().parents[3] / ".env"]
+    for env_path in candidates:
+        if not env_path.is_file():
+            continue
+        try:
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key, value = key.strip(), value.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = value
+        except OSError:
+            pass
+        break
+
+
 def _call_openrouter(model: str, state: AgentState) -> dict:
     """One OpenRouter call (OpenAI-compatible, function calling).
 
     Model examples: deepseek/deepseek-chat-v3.1:free, deepseek/deepseek-r1,
-    openai/gpt-4o-mini. API key from OPENROUTER_API_KEY."""
+    openai/gpt-4o-mini. API key from OPENROUTER_API_KEY (environment or
+    repo-root .env)."""
     import urllib.request
 
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
-        raise OrchestratorError("OPENROUTER_API_KEY not set in environment")
+        _load_dotenv()
+        api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise OrchestratorError(
+            "OPENROUTER_API_KEY not set — put it in a repo-root .env file "
+            "(copy .env.example) or export it in the environment")
 
     tools = [
         {

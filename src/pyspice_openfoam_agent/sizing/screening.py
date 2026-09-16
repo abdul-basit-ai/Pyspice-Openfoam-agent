@@ -36,8 +36,16 @@ def screen(
     capacitor: Capacitor,
     tj_limit_c: float = 150.0,
     ambient_c: float = 27.0,
+    vripple_budget: float | None = None,
 ) -> ScreeningVerdict:
-    """Fast screening on the selected real parts. Pure math, no simulation."""
+    """Fast screening on the selected real parts. Pure math, no simulation.
+
+    `vripple_budget`: the spec's output ripple budget (V). When given, the
+    predicted peak-to-peak output ripple (capacitive + ESR terms) must meet
+    it — the audit-run boost shipped a 3x ripple-spec violation because
+    C_min sizing is capacitive-only and nothing compared ESR ripple against
+    the budget. Pass None only in legacy direct callers without a budget.
+    """
     reasons: list[str] = []
     warnings: list[str] = []
 
@@ -80,6 +88,35 @@ def screen(
             f"Capacitor Irms_max {capacitor.Irms_max:.1f}A < estimated ripple current "
             f"{i_ripple_cap:.2f}A — borderline, continuing to SPICE"
         )
+
+    # --- output ripple vs the SPEC budget (audit fix) ---
+    # C_min sizing is capacitive-only; for real parts the ESR term usually
+    # dominates (e.g. a 10 mOhm POSCAP at a boost's ~I_L cap-current swing
+    # costs ~90 mV on its own). Predict p-p ripple from the selected part:
+    #   buck:            cap current swings by di_pp
+    #   boost/buck_boost: cap current swings by ~I_L_avg = Iout/(1-D)
+    if vripple_budget is not None and vripple_budget > 0:
+        if sizing.topology == "buck":
+            i_cap_pp = sizing.di_pp
+            v_cap_pp = sizing.di_pp / (8.0 * fsw * capacitor.C)
+        else:
+            d = min(max(sizing.D, 0.05), 0.95)
+            i_cap_pp = spec_iout / (1.0 - d)
+            v_cap_pp = spec_iout * d / (fsw * capacitor.C)
+        v_esr_pp = capacitor.ESR * i_cap_pp
+        v_pp_pred = v_cap_pp + v_esr_pp
+        if v_pp_pred > vripple_budget:
+            reasons.append(
+                f"predicted output ripple {v_pp_pred * 1e3:.1f} mV pp exceeds the "
+                f"spec budget {vripple_budget * 1e3:.1f} mV "
+                f"(ESR term {v_esr_pp * 1e3:.1f} mV from {capacitor.ESR * 1e3:.1f} mOhm "
+                f"x {i_cap_pp:.2f} A cap-current swing + capacitive "
+                f"{v_cap_pp * 1e3:.1f} mV) — select a lower-ESR / larger capacitor "
+                f"or relax the budget")
+        elif v_pp_pred > 0.8 * vripple_budget:
+            warnings.append(
+                f"predicted output ripple {v_pp_pred * 1e3:.1f} mV pp is within 20% "
+                f"of the {vripple_budget * 1e3:.1f} mV budget — SPICE will verify")
 
     # --- conduction-loss efficiency floor (best-case efficiency estimate) ---
     r_total = mosfet.Rds_on + inductor.DCR

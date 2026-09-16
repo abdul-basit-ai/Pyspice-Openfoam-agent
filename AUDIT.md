@@ -242,7 +242,39 @@ equations is meaningless).
   `PROJECT_STRUCTURE.md` (referenced files that never existed) rewritten;
   `CLAUDE.md` baseline updated.
 
-## 6. Known limitations (documented, not changed)
+## 6. Post-audit additions (found by playing with the UI)
+
+### 6.1 Spec-ripple budget was never checked (the "verified 3x violation")
+A UI run (4.5->8 V boost, 35 mV budget, 10 mOhm POSCAP) measured **108.7 mV**
+of ripple — 3x its own spec — and was summarized as "verified", because the
+only ripple gate (20%-of-Vout) is a rig-corruption detector, not a spec
+compliance check. Fixed at two layers:
+- **Screening (predictive):** `screen(vripple_budget=...)` predicts p-p
+  output ripple (ESR term from the selected part's cap-current swing +
+  capacitive term; prediction matched the measurement within 0.1 mV) and
+  rejects violations at selection time.
+- **run_spice (measured):** the steady ripple is compared against the spec
+  budget; a violation is a structured `spec_violation` failure the ReAct
+  loop must observe (rig health and spec compliance are now distinct).
+
+### 6.2 MLCC banking for tight budgets
+The rejection exposed a capability gap: no single library capacitor meets
+tight budgets (best bulk = 10 mOhm; budgets need ~2-3 mOhm at 10 A swing).
+`select_capacitor` now synthesizes parallel banks (up to 8x) of the
+lowest-ESR adequate-voltage part — C and Irms add, ESR/ESL divide — when the
+best single part misses the budget, and reports an explicit "beyond this
+library" note when even 8 units cannot. Verified end-to-end: 3->6 V boost @
+30 mV now selects 4x 47 uF MLCC and measures **28.3 mV** (meets spec).
+
+### 6.3 Verdict integrity
+The agent observed the ripple-violation error and still summarized "meets
+all electrical and thermal requirements". `graph.finalize` now attaches every
+tool failure seen during the run to `final["caveats"]`, and the UI renders
+them as red banners above the summary — a summary can no longer bury a
+failure. (Also: Streamlit caches imported modules — restart the `pyspice-ui`
+container after code edits.)
+
+## 7. Known limitations (documented, not changed)
 
 - buck_boost switching loss uses `max(Vin, Vout)` as blocking voltage for all
   four dies (the output pair blocks only Vout) — conservative.

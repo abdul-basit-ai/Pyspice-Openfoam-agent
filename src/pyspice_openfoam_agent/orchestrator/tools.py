@@ -394,7 +394,8 @@ def tool_select_components(ctx: ToolContext) -> dict:
         from pyspice_openfoam_agent.sizing.screening import screen
 
         verdict = screen(ctx.spec.Vin, ctx.spec.Vout, ctx.spec.Iout, ctx.spec.fsw,
-                         ctx.sizing, sel.mosfet, sel.inductor, sel.capacitor)
+                         ctx.sizing, sel.mosfet, sel.inductor, sel.capacitor,
+                         vripple_budget=ctx.spec.Vripple)
         if verdict.rejected:
             return {"error": "screening rejected the selected parts: "
                              + "; ".join(verdict.reasons),
@@ -481,6 +482,12 @@ def tool_run_spice(ctx: ToolContext, max_cycles: float = 800) -> dict:
         )
         lb = extract_losses_for(ctx, run)
         ctx.losses = lb  # cached for run_thermal (no duplicate simulation)
+        # Spec-compliance gate: health.ok above only proves the RIG is sane
+        # (its guard is 20% of Vout); the design must also meet the SPEC's
+        # ripple budget. A measured violation is a structured failure the
+        # agent has to react to (audit-run finding: a 3x ripple-spec miss
+        # was reported as a green "verified" verdict).
+        ripple_budget_ok = ripple <= ctx.spec.Vripple
         # Efficiency is LOSS-BASED: eta = P_out/(P_out+P_loss). The waveform
         # measure (measure_efficiency) is loss-blind -- ideal switches cannot
         # dissipate hard-switch/Coss/Crr losses, so it always reads ~98-100%,
@@ -500,7 +507,23 @@ def tool_run_spice(ctx: ToolContext, max_cycles: float = 800) -> dict:
         "health": health, "hs_switching_W": lb.losses.hs_switching if lb else None,
         "ls_switching_W": lb.losses.ls_switching if lb else None,
         "duty_trim": trim,
+        "ripple_budget_V": ctx.spec.Vripple,
+        "ripple_meets_spec": bool(ripple_budget_ok),
     }
+    if not ripple_budget_ok:
+        return {
+            "error": (f"measured output ripple {ripple * 1e3:.1f} mV exceeds the "
+                      f"spec budget {ctx.spec.Vripple * 1e3:.1f} mV — the rig is "
+                      f"healthy but the DESIGN misses its ripple spec; select a "
+                      f"lower-ESR/larger capacitor or relax the budget"),
+            "converged": True,
+            "ripple_mV": round(ripple * 1e3, 2),
+            "ripple_budget_mV": round(ctx.spec.Vripple * 1e3, 2),
+            "spec_violation": True,
+            "health": health,
+            "efficiency": round(eff, 4),
+            "total_loss_W": round(lb.losses.total, 3) if lb else None,
+        }
     # visualizations for the UI (best-effort; never fail the tool on render)
     try:
         from pyspice_openfoam_agent.ui.visualize import draw_schematic, plot_waveforms
@@ -525,6 +548,8 @@ def tool_run_spice(ctx: ToolContext, max_cycles: float = 800) -> dict:
         "converged": run.steady_state.converged,
         "cycles_to_steady": run.n_cycles_run,
         "ripple_mV": round(ripple * 1e3, 2),
+        "ripple_budget_mV": round(ctx.spec.Vripple * 1e3, 2),
+        "ripple_meets_spec": bool(ripple_budget_ok),
         "efficiency": round(eff, 4),
         "total_loss_W": round(lb.losses.total, 3) if lb else None,
         "per_device_W": {k: round(v, 3) for k, v in lb.per_device_watts.items()} if lb else {},

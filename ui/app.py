@@ -196,6 +196,10 @@ def tab_results(state: dict | None, artifacts: dict) -> None:
     st.header("Results")
     final = (state or {}).get("final")
     if final:
+        caveats = final.get("caveats") or []
+        for c in caveats:
+            st.error(f"Tool failure during this run — the summary below may "
+                     f"overstate the design: {c}")
         st.success(final.get("summary", "run complete"))
     spice = artifacts.get("spice")
     if spice:

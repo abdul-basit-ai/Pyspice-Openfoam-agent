@@ -90,25 +90,105 @@ def select_inductor(lib: Library, sizing: SizingResult) -> Inductor:
     return hits[0]  # query_inductors sorts ascending by L
 
 
-def select_capacitor(lib: Library, spec: Spec, sizing: SizingResult) -> tuple[Capacitor, list[str]]:
-    """Lowest-ESR part (among those that clear C/V_rated with margin).
+def _predicted_ripple_pp(spec: Spec, sizing: SizingResult, fsw: float,
+                         c_eff: float, esr_eff: float) -> tuple[float, float, float]:
+    """(total p-p, ESR term, capacitive term) predicted output ripple for an
+    effective output capacitance/ESR — the same closed form the screening
+    gate uses (buck: cap current swings di_pp; boost/buck_boost: the full
+    inductor current I_L = Iout/(1-D) with Iout*D/(fsw*C) of storage swing)."""
+    if sizing.topology == "buck":
+        i_cap_pp = sizing.di_pp
+        v_cap = sizing.di_pp / (8.0 * fsw * c_eff)
+    else:
+        d = min(max(sizing.D, 0.05), 0.95)
+        i_cap_pp = spec.Iout / (1.0 - d)
+        v_cap = spec.Iout * d / (fsw * c_eff)
+    v_esr = i_cap_pp * esr_eff
+    return v_esr + v_cap, v_esr, v_cap
 
-    ESR is deliberately not enforced by the sizing engine (see engine.py's
-    module docstring) -- it needs a real part. Once one is picked, check the
-    ESR-driven ripple contribution against the spec's ripple budget and warn
-    (not fail) if it alone would blow the budget, since C_min + ESR together
-    determine actual ripple and only the C-term was sized analytically.
+
+def _banked_capacitor(base: Capacitor, n: int) -> Capacitor:
+    """Synthesize an n-unit parallel bank of `base` as one Capacitor:
+    C and Irms add, ESR and ESL divide. Paralleling identical ceramics is
+    standard practice when no single part meets a tight ripple budget; the
+    netlist emitter renders the bank as its exact single-branch equivalent
+    (C_eff, ESR_eff in series — identical to n branches now that ESL is not
+    emitted)."""
+    return Capacitor(
+        part_number=f"{n}x {base.part_number}",
+        manufacturer=base.manufacturer,
+        C=base.C * n,
+        tol_percent=base.tol_percent,
+        ESR=base.ESR / n,
+        ESL=max(base.ESL / n, 0.0),
+        V_rated=base.V_rated,
+        Irms_max=base.Irms_max * n,
+        package=base.package,
+        datasheet=base.datasheet,
+    )
+
+
+def select_capacitor(lib: Library, spec: Spec, sizing: SizingResult) -> tuple[Capacitor, list[str]]:
+    """Lowest-ESR selection (among parts that clear C/V_rated with margin),
+    extended with MLCC BANKING when no single part can meet the spec's ripple
+    budget (audit-run finding: the tightest budgets need ESR ~2-3 mOhm at
+    10-12 A cap-current swing, and the best single bulk part is 10 mOhm).
+
+    Selection order:
+      1. single part meeting C_min*margin and V_rated*margin with the lowest
+         ESR — kept as-is when its predicted ripple fits the budget;
+      2. otherwise the lowest-ESR adequate-voltage part, paralleled N times
+         (N solves C >= 1.2*C_min AND predicted ripple <= budget; capped at
+         8 units) — returned as a synthesized bank Capacitor.
     """
     C_req = sizing.C_min * C_MARGIN
     vrated_req = spec.Vout * VRATED_MARGIN
-    hits = query_capacitors(lib, C_min=C_req, V_rated_min=vrated_req)
-    if not hits:
-        raise SelectionError(
-            f"No capacitor in library with C >= {C_req * 1e6:.1f} uF and V_rated >= {vrated_req:.1f} V"
-        )
-    best = min(hits, key=lambda c: c.ESR)
     notes: list[str] = []
-    esr_ripple = sizing.di_pp * best.ESR
+
+    def ripple_of(c: Capacitor) -> float:
+        return _predicted_ripple_pp(spec, sizing, spec.fsw, c.C, c.ESR)[0]
+
+    hits = query_capacitors(lib, C_min=C_req, V_rated_min=vrated_req)
+    best_single = min(hits, key=lambda c: c.ESR) if hits else None
+    budget_ok = lambda c: (spec.Vripple <= 0) or (ripple_of(c) <= spec.Vripple)
+
+    if best_single is not None and budget_ok(best_single):
+        best = best_single
+    else:
+        # bank from the lowest-ESR adequate-voltage part (C_min filter dropped:
+        # units add)
+        pool = query_capacitors(lib, V_rated_min=vrated_req)
+        if not pool:
+            raise SelectionError(
+                f"No capacitor in library with V_rated >= {vrated_req:.1f} V"
+            )
+        base = min(pool, key=lambda c: c.ESR)
+        best = None
+        for n in range(1, 9):
+            cand = _banked_capacitor(base, n)
+            if cand.C >= C_req and budget_ok(cand):
+                best = cand
+                notes.append(
+                    f"output capacitor bank: {n}x {base.part_number} in parallel "
+                    f"(C_eff {cand.C * 1e6:.0f} uF, ESR_eff {cand.ESR * 1e3:.2f} mOhm) — "
+                    f"no single library part met the "
+                    f"{spec.Vripple * 1e3:.0f} mV ripple budget"
+                )
+                break
+        if best is None:
+            # even 8 units cannot meet the budget: return the best-effort
+            # 8-unit bank and let the screening gate reject the design with
+            # the honest number (do NOT silently ship a bank that misses
+            # the spec)
+            best = best_single or _banked_capacitor(base, 8)
+            notes.append(
+                f"even an 8x {base.part_number} bank predicts "
+                f"{ripple_of(best) * 1e3:.2f} mV pp ripple — the "
+                f"{spec.Vripple * 1e3:.2f} mV budget is beyond this library; "
+                f"screening will reject"
+            )
+
+    esr_ripple = _predicted_ripple_pp(spec, sizing, spec.fsw, best.C, best.ESR)[1]
     if esr_ripple > spec.Vripple:
         notes.append(
             f"ESR-driven ripple ({esr_ripple * 1e3:.1f} mV) with {best.part_number} alone exceeds "

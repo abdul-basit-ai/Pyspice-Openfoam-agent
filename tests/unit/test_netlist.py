@@ -92,14 +92,24 @@ def test_selection_raises_when_library_cannot_satisfy_spec(lib: Library) -> None
         select_components(lib, spec, sizing)
 
 
-def test_capacitor_esr_ripple_note_fires_when_relevant(lib: Library) -> None:
-    # Tighter Vripple budget than the published example, with the same
-    # ripple current -- the lowest-ESR qualifying part's ESR-driven ripple
-    # alone exceeds this budget, which must surface as a note, not a raise.
+def test_capacitor_ripple_budget_handled_by_banking(lib: Library) -> None:
+    # Tighter Vripple budget than the published example: the lowest-ESR
+    # single part misses it, so the selector must now SOLVE it with an MLCC
+    # bank (C adds, ESR divides) instead of only warning.
     spec = Spec(Vin=12.0, Vout=5.0, Iout=5.0, fsw=500e3, ripple_ratio=0.40, Vripple=0.01)
     sizing = size(spec)
     sel = select_components(lib, spec, sizing)
-    assert any("ESR-driven ripple" in n for n in sel.notes)
+    assert any("bank" in n for n in sel.notes)
+    assert sel.capacitor.part_number.startswith("2x "), sel.capacitor.part_number
+
+
+def test_capacitor_esr_ripple_note_fires_when_unmeetable(lib: Library) -> None:
+    # A budget even an 8-unit bank cannot meet must surface the ESR-driven
+    # note on the returned (best single) part — and screening rejects it.
+    spec = Spec(Vin=12.0, Vout=5.0, Iout=5.0, fsw=500e3, ripple_ratio=0.40, Vripple=0.0015)
+    sizing = size(spec)
+    sel = select_components(lib, spec, sizing)
+    assert any("beyond this library" in n for n in sel.notes)
 
 
 # ---------- netlist text sanity (no ngspice required) ----------
