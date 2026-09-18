@@ -65,6 +65,11 @@ Standard flow: read_design_memory -> size_converter -> select_components ->
 build_netlist -> run_spice -> run_thermal (mitigate_thermal if Tj too high).
 Stop when the thermal result is in hand; report the key numbers.
 
+Optional deeper verification (use when the spec demands it or time allows):
+- run_step_tests: load/input-step transient response (open-loop plant).
+- run_sweeps: load or input-corner sweep (regulation/ripple/efficiency).
+- optimize_pareto: NSGA-II design-space search + CHT-verified finalists.
+
 Rules:
 - One tool call per step; observe each result before deciding.
 - If a tool returns an error, adapt or stop with a clear reason.

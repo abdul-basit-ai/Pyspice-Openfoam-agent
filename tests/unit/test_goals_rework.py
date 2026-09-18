@@ -44,12 +44,26 @@ def test_p1_inductor_tempco_method(lib):
     assert ind.dcr_at(100.0) == pytest.approx(ind.DCR * (1 + 0.0039 * 75))
 
 
-def test_p1_new_categories_optional(lib):
+def test_p1_new_categories_optional(tmp_path):
+    """The IC/diode categories stay OPTIONAL: a data dir without those YAMLs
+    loads successfully with zero counts (verified on a stripped temp copy —
+    the real library now ships populated files, Group A1)."""
+    import shutil
+
+    from pyspice_openfoam_agent.library.loader import LIBRARY_DIR, load_library
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    for f in ("mosfets.yaml", "inductors.yaml", "capacitors.yaml"):
+        shutil.copy(LIBRARY_DIR / f, data_dir / f)
+    lib = load_library(data_dir)
     counts = lib.counts()
-    # IC/diode categories are optional: absent files load as empty
     assert counts["gate_drivers"] == 0
     assert counts["controllers"] == 0
     assert counts["diodes"] == 0
+    # and the real library has them populated
+    counts_full = load_library().counts()
+    assert counts_full["gate_drivers"] >= 3 and counts_full["controllers"] >= 4
 
 
 def test_p1_schema_new_fields(lib):

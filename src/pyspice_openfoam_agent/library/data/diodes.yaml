@@ -1,0 +1,56 @@
+category: diodes
+# Curated from public manufacturer datasheets (Tier-1 static library).
+# Units: V, A, mV/K, ns, degC/W, degC.
+# All entries are Schottky barrier rectifiers (trr omitted = Schottky per
+# schema). Vf_25 is the datasheet value at the stated rated forward current.
+parts:
+  - part_number: SS34
+    manufacturer: Vishay
+    Vf_25: 0.5
+    I_avg_max: 3.0
+    Vr_max: 40.0
+    package: SMA
+    Tj_max: 150.0
+    datasheet:
+      url: "https://www.vishay.com/doc/?88751"
+      note: "40V/3A Schottky, Vf ~0.5V at 3A"
+  - part_number: SS54
+    manufacturer: Vishay
+    Vf_25: 0.55
+    I_avg_max: 5.0
+    Vr_max: 40.0
+    package: SMA
+    Tj_max: 150.0
+    datasheet:
+      url: "https://www.vishay.com/doc/?88751"
+      note: "40V/5A Schottky (SS family), Vf ~0.55V at 5A (0.49V typ)"
+  - part_number: B340A-13-F
+    manufacturer: Diodes Incorporated
+    Vf_25: 0.5
+    I_avg_max: 3.0
+    Vr_max: 40.0
+    package: SMA
+    Tj_max: 150.0
+    datasheet:
+      url: "https://www.diodes.com/datasheet/download/B340%2528LS%2529.pdf"
+      note: "40V/3A Schottky, Vf 500mV max at 3A"
+  - part_number: PMEG6030EP
+    manufacturer: Nexperia
+    Vf_25: 0.53
+    I_avg_max: 3.0
+    Vr_max: 60.0
+    package: SOD-128
+    Tj_max: 150.0
+    datasheet:
+      url: "https://www.nexperia.com/products/schottky-diodes/PMEG6030EP.html"
+      note: "60V/3A clip-bond Schottky, Vf max 530mV at 3A"
+  - part_number: MBR20100CT
+    manufacturer: onsemi
+    Vf_25: 0.8
+    I_avg_max: 10.0
+    Vr_max: 100.0
+    package: TO-220AB
+    Tj_max: 150.0
+    datasheet:
+      url: "https://www.onsemi.com/pdf/datasheet/mbr20100ct-d.pdf"
+      note: "100V dual common-cathode Schottky, 10A/leg, Vf ~0.80V at 10A per leg"

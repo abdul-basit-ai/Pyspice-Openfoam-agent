@@ -149,3 +149,73 @@ def query_capacitors(
             continue
         hits.append(c)
     return sorted(hits, key=lambda x: x.C)
+
+
+def query_gate_drivers(
+    lib: Library,
+    v_drive_min: float | None = None,
+    v_drive_max: float | None = None,
+    peak_source_min: float | None = None,
+    half_bridge: bool | None = None,
+) -> list[GateDriver]:
+    """Filter gate drivers by drive-voltage window and peak current.
+
+    `half_bridge=True` selects only parts that drive a high-side + low-side
+    pair from one IC (the synchronous-buck configuration); False selects
+    low-side single-channel parts. None = no topology filter (the library
+    encodes the distinction via part notes; the LM5107 is the half-bridge).
+    Returns sorted by peak source current (descending) — stronger drive
+    first, which is the ordering the Phase 5 selection wants.
+    """
+    _HALF_BRIDGE = {"LM5107MAX"}
+    hits = []
+    for g in lib.gate_drivers.values():
+        if v_drive_min is not None and g.drive_voltage_min_v > v_drive_min:
+            continue  # rail too low for this part
+        if v_drive_max is not None and g.drive_voltage_max_v < v_drive_max:
+            continue  # rail too high for this part
+        if peak_source_min is not None and g.peak_source_a < peak_source_min:
+            continue
+        if half_bridge is not None and ((g.part_number in _HALF_BRIDGE) != half_bridge):
+            continue
+        hits.append(g)
+    return sorted(hits, key=lambda g: g.peak_source_a, reverse=True)
+
+
+def query_controllers(
+    lib: Library,
+    control_law: str | None = None,
+    fsw_hz: float | None = None,
+) -> list[ControllerIC]:
+    """Filter controller ICs by control law and switching-frequency window.
+
+    `fsw_hz` keeps only parts whose [fsw_min, fsw_max] contains the design's
+    switching frequency. Returns sorted by fsw_max (descending).
+    """
+    hits = []
+    for c in lib.controllers.values():
+        if control_law is not None and c.control_law != control_law:
+            continue
+        if fsw_hz is not None and not (c.fsw_min_hz <= fsw_hz <= c.fsw_max_hz):
+            continue
+        hits.append(c)
+    return sorted(hits, key=lambda c: c.fsw_max_hz, reverse=True)
+
+
+def query_diodes(
+    lib: Library,
+    Vr_min: float | None = None,
+    I_avg_min: float | None = None,
+    Vf_max: float | None = None,
+) -> list[Diode]:
+    """Filter diodes. Returns sorted by Vf_25 (ascending) — lowest drop first."""
+    hits = []
+    for d in lib.diodes.values():
+        if Vr_min is not None and d.Vr_max < Vr_min:
+            continue
+        if I_avg_min is not None and d.I_avg_max < I_avg_min:
+            continue
+        if Vf_max is not None and d.Vf_25 > Vf_max:
+            continue
+        hits.append(d)
+    return sorted(hits, key=lambda d: d.Vf_25)

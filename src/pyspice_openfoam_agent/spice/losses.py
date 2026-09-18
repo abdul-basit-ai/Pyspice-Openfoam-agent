@@ -84,6 +84,7 @@ class DeviceLosses:
     hs_switching: float
     ls_switching: float
     gate_drive: float  # both switches' gate drivers, total
+    capacitor_esr: float = 0.0  # output-cap bank RMS ripple current x ESR
     total: float = field(init=False)
 
     def __post_init__(self) -> None:
@@ -94,6 +95,7 @@ class DeviceLosses:
             + self.hs_switching
             + self.ls_switching
             + self.gate_drive
+            + self.capacitor_esr
         )
 
 
@@ -142,7 +144,9 @@ def crossover_time(mosfet: MOSFET) -> float:
     tier so the two loss models cannot silently diverge.)
     """
     i_gate = (GATE_DRIVE_V - mosfet.V_plateau) / GATE_DRIVE_R
-    t_cross = mosfet.Qgd / i_gate
+    # guard: a V_plateau at/above the drive rail (V_plateau=5.0 parts on a
+    # 5 V drive) gives ZERO gate current -> unclippable division by zero
+    t_cross = mosfet.Qgd / max(i_gate, 1e-9)
     return float(np.clip(t_cross, 1e-9, 200e-9))
 
 
@@ -242,6 +246,8 @@ def extract_losses(
     fsw: float,
     topology: str,
     settle_time: float,
+    cap_esr: float = 0.0,
+    iout: float | None = None,
 ) -> LossBreakdown:
     """Compute per-device losses from one steady-state transient result.
 
@@ -319,6 +325,25 @@ def extract_losses(
     p_ls_cond = n_series * _masked_mean_power(t, i_l**2 * ron, ls_on)
     p_dcr = _masked_mean_power(t, i_l**2 * inductor_dcr, np.ones_like(t, dtype=bool))
 
+    # --- capacitor ESR loss (Phase 9: losses localized by component) ---
+    # i_cap = feed current into the output node minus the load current.
+    # buck: the inductor feeds the cap/load node continuously (i_feed = i_L).
+    # boost/buck_boost: the output node is fed only while the synchronous
+    # rectifier conducts (the ls_on mask) — that pulsed diode-side current is
+    # what actually stresses the cap (its RMS is far above Iout).
+    p_cap_esr = 0.0
+    i_cap_rms = 0.0
+    if cap_esr > 0 and iout is not None and iout > 0 and result.has("out"):
+        v_out_w = np.asarray(result["out"])[steady_mask]
+        i_out_w = v_out_w * (iout / vout)  # load current ≈ v_out / R_load
+        if topology == "buck":
+            i_feed = i_l
+        else:
+            i_feed = np.where(ls_on, i_l, 0.0)
+        i_cap = i_feed - i_out_w
+        i_cap_rms = float(np.sqrt(np.mean(i_cap**2)))
+        p_cap_esr = i_cap_rms**2 * cap_esr
+
     # --- switching loss: DECOUPLED HS vs LS mechanisms (task C) ---
     # HS: hard-switching crossover + output-capacitance (Coss) charge/discharge.
     # The through-current at each event is the inductor RIPPLE ENDPOINT, not
@@ -370,6 +395,7 @@ def extract_losses(
         hs_switching=p_hs_switching,
         ls_switching=p_ls_switching,
         gate_drive=p_gate,
+        capacitor_esr=p_cap_esr,
     )
 
     notes = [
@@ -382,6 +408,12 @@ def extract_losses(
         f"{'Vin' if topology=='buck' else vout if topology=='boost' else 'Vin (left pair)'}",
     ]
     notes.extend(coss_notes)
+    if p_cap_esr > 0:
+        notes.append(
+            f"output capacitor ESR loss {p_cap_esr * 1e3:.1f} mW "
+            f"(I_cap,rms {i_cap_rms:.2f} A x ESR {cap_esr * 1e3:.2f} mOhm) — "
+            f"dissipated in the cap/bank, board-level heat (no die zone)"
+        )
     if topology == "buck_boost":
         notes.append(
             "4-switch topology: each phase's conduction counted for its two series "

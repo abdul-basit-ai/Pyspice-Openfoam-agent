@@ -92,9 +92,13 @@ def reduced_order_losses(
     """
     rds = mosfet.rds_on_at(tj_c)
     p_cond = iout ** 2 * rds * conduction_factor
-    # switching: 0.5 * V * I * (tr+tf) * fsw with crossover from Qgd
-    i_gate = (5.0 - mosfet.V_plateau) / 2.0
-    t_cross = mosfet.Qgd / max(i_gate, 1e-9)
+    # switching: 0.5 * V * I * (tr+tf) * fsw with crossover from the SHARED
+    # spice.losses.crossover_time (Miller-plateau model, clamped 1-200 ns —
+    # the old inline formula divided by a gate current that is ZERO for
+    # V_plateau=5.0 parts, producing t_cross ~ seconds and Tj ~ 1e9 degC)
+    from pyspice_openfoam_agent.spice.losses import crossover_time
+
+    t_cross = crossover_time(mosfet)
     p_sw = 0.5 * (v_block if v_block is not None else 12.0) * iout * 2 * t_cross * fsw_hz
     p_gate = 2.0 * mosfet.Qg * 5.0 * fsw_hz
     return (p_cond + p_sw + p_gate), p_cond + p_sw + p_gate
@@ -217,7 +221,10 @@ def run_pareto(
     front_idx = nds.do(res.F, only_non_dominated_front=True)
     front_idx = set(int(i) for i in front_idx)
 
-    # collect the front
+    # collect the front. Re-screen each member with the SAME rules the
+    # evaluation used (sizing + current/L floors): a 1e6-penalty row that is
+    # non-dominated on the cost objective must not be resurrected with
+    # recomputed numbers (audit-style fix surfaced by the optimizer tool).
     candidates: list[Candidate] = []
     fets_by_idx = {i: m for i, m in enumerate(fets)}
     for i, (x, f) in enumerate(zip(res.X, res.F)):
@@ -226,7 +233,21 @@ def run_pareto(
         mi = int(x[3])
         mosfet = fets_by_idx[min(mi, len(fets) - 1)]
         fsw_khz = float(x[0])
-        p_loss, _ = reduced_order_losses(mosfet, req.Iout, fsw_khz * 1e3)
+        try:
+            from pyspice_openfoam_agent.sizing.engine import Spec, size as engine_size
+
+            sizing = engine_size(Spec(
+                Vin=req.Vin, Vout=req.Vout, Iout=req.Iout,
+                fsw=fsw_khz * 1e3, ripple_ratio=req.ripple_ratio,
+                Vripple=req.ripple_v, topology_constraint=topology,
+            ))
+            if sizing.I_peak > mosfet.Id_max or float(x[1]) * 1e-6 < sizing.L_min:
+                continue  # screened out during evaluation; stays out
+        except Exception:
+            continue
+        p_loss, _ = reduced_order_losses(
+            mosfet, req.Iout, fsw_khz * 1e3,
+            v_block=v_block, conduction_factor=cond_factor)
         tj = reduced_order_tj(p_loss, mosfet.R_theta_ja, x[2])
         p_out = req.Vout * req.Iout
         eff = p_out / (p_out + p_loss)

@@ -16,8 +16,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from pyspice_openfoam_agent.library.loader import Library, query_capacitors, query_inductors, query_mosfets
-from pyspice_openfoam_agent.library.schema import Capacitor, Inductor, MOSFET
+from pyspice_openfoam_agent.library.loader import (
+    Library,
+    query_capacitors,
+    query_controllers,
+    query_gate_drivers,
+    query_inductors,
+    query_mosfets,
+)
+from pyspice_openfoam_agent.library.schema import (
+    Capacitor,
+    ControllerIC,
+    GateDriver,
+    Inductor,
+    MOSFET,
+)
 from pyspice_openfoam_agent.sizing.engine import Spec, SizingResult
 
 # Margin factors. Each is a documented, conservative choice -- not tuned to
@@ -42,6 +55,10 @@ class SelectedComponents:
     mosfet: MOSFET  # same part number used for both switches (synchronous topology)
     inductor: Inductor
     capacitor: Capacitor
+    # Phase 5 ICs (BOM lines only — the SPICE rig stays behavioral with ideal
+    # switches, so the netlist never references these parts):
+    gate_driver: GateDriver | None = None
+    controller: ControllerIC | None = None
     notes: list[str] = field(default_factory=list)
 
 
@@ -215,15 +232,119 @@ def select_capacitor(lib: Library, spec: Spec, sizing: SizingResult,
     return best, notes
 
 
+# --- Phase 5 IC selection (gate driver + controller; BOM lines only) ---
+# The SPICE rig models gates as behavioral 5 V / 2 ohm sources (builder.py's
+# GATE_DRIVE_V / GATE_DRIVE_R). The IC selection mirrors that assumption: the
+# driver must be able to deliver the rig's peak gate current at the chosen
+# rail. Controllers are filtered to voltage-mode parts (the compensator this
+# project designs is a Type III voltage-mode network).
+_BUCK_ONLY_CONTROLLERS = {"TPS40057PWPR", "LM27402MHX"}  # buck controllers
+_GENERIC_PWM_CONTROLLERS = {"SG3525A", "TL494"}  # usable in any VM topology
+
+
+def select_gate_driver(lib: Library, mosfet: MOSFET, topology: str) -> tuple[GateDriver | None, list[str]]:
+    """Pick a gate driver consistent with the rig's drive assumption.
+
+    Buck: the HS switch floats on the switch node — a real design needs a
+    half-bridge (bootstrap) driver. Boost/buck_boost: all switches are
+    ground-referenced; two single low-side drivers (or one dual) suffice.
+    Returns (driver_or_None, notes). None + note means the library has no
+    fit — reported honestly, never silently skipped.
+    """
+    from pyspice_openfoam_agent.netlist.builder import GATE_DRIVE_R, GATE_DRIVE_V
+
+    i_gate_req = max((GATE_DRIVE_V - mosfet.V_plateau) / GATE_DRIVE_R, 0.5)
+    notes: list[str] = []
+    if topology == "buck":
+        half = query_gate_drivers(lib, half_bridge=True,
+                                  peak_source_min=i_gate_req)
+        if not half:
+            # fall back to ANY half-bridge part even if peak current is shy
+            half = query_gate_drivers(lib, half_bridge=True)
+        if not half:
+            notes.append("gate driver: no half-bridge driver in library — "
+                         "synchronous buck needs one; IC omitted")
+            return None, notes
+        d = half[0]
+        if not (d.drive_voltage_min_v <= GATE_DRIVE_V <= d.drive_voltage_max_v):
+            notes.append(
+                f"gate driver: {d.part_number} needs a {d.drive_voltage_min_v:.0f}-"
+                f"{d.drive_voltage_max_v:.0f} V VDD rail (the SPICE rig's behavioral "
+                f"5 V drive is a simulation convention; power it from an aux rail)"
+            )
+        else:
+            notes.append(f"gate driver: {d.part_number} (half-bridge, "
+                         f"{d.peak_source_a:.1f}A/{d.peak_sink_a:.1f}A, "
+                         f"tpd {d.propagation_delay_ns:.0f} ns)")
+        return d, notes
+    # boost / buck_boost: ground-referenced switches -> low-side drivers,
+    # rail window must contain the rig's 5 V, peak current >= rig demand.
+    low = query_gate_drivers(lib, v_drive_min=GATE_DRIVE_V, v_drive_max=GATE_DRIVE_V,
+                             peak_source_min=i_gate_req, half_bridge=False)
+    if not low:
+        notes.append(
+            f"gate driver: no low-side driver in library covers a {GATE_DRIVE_V:.0f} V "
+            f"rail at >= {i_gate_req:.1f} A peak — IC omitted"
+        )
+        return None, notes
+    fastest = min(low, key=lambda g: g.propagation_delay_ns)
+    notes.append(
+        f"gate driver: {fastest.part_number} (low-side x2 for {topology}, "
+        f"{fastest.peak_source_a:.1f}A/{fastest.peak_sink_a:.1f}A, "
+        f"tpd {fastest.propagation_delay_ns:.0f} ns — fastest of "
+        f"{len(low)} candidates covering the {GATE_DRIVE_V:.0f} V rail)"
+    )
+    return fastest, notes
+
+
+def select_controller(lib: Library, spec: Spec, sizing: SizingResult) -> tuple[ControllerIC | None, list[str]]:
+    """Pick a voltage-mode controller whose fsw window covers the design.
+
+    Buck designs may use buck-specific controllers or generic PWM parts;
+    boost/buck_boost get generic parts only (buck controllers' gate timing
+    assumes a buck power stage). None + note = library gap, reported honestly.
+    """
+    notes: list[str] = []
+    vm = query_controllers(lib, control_law="voltage", fsw_hz=spec.fsw)
+    usable = [c for c in vm
+              if sizing.topology == "buck" or c.part_number in _GENERIC_PWM_CONTROLLERS]
+    if not usable:
+        # best-effort: name the closest usable-class part and the gap instead
+        # of silence (closest among GENERIC parts — buck controllers are not
+        # candidates for boost/buck_boost however fast they are)
+        generic = [c for c in query_controllers(lib, control_law="voltage")
+                   if c.part_number in _GENERIC_PWM_CONTROLLERS]
+        if generic:
+            closest = max(generic, key=lambda c: c.fsw_max_hz)
+            notes.append(
+                f"controller: no voltage-mode library controller covers "
+                f"{spec.fsw / 1e3:.0f} kHz for {sizing.topology} (closest generic: "
+                f"{closest.part_number}, fsw <= {closest.fsw_max_hz / 1e3:.0f} kHz) — IC omitted"
+            )
+        else:
+            notes.append("controller: library has no voltage-mode controllers — IC omitted")
+        return None, notes
+    # prefer the widest fsw headroom above the design point
+    c = max(usable, key=lambda x: x.fsw_max_hz - spec.fsw)
+    notes.append(
+        f"controller: {c.part_number} (voltage-mode, fsw {c.fsw_min_hz / 1e3:.0f}-"
+        f"{c.fsw_max_hz / 1e3:.0f} kHz vs design {spec.fsw / 1e3:.0f} kHz, "
+        f"Vref {c.v_ref} V +/-{c.v_ref_tol_percent:.0f}%)"
+    )
+    return c, notes
+
+
 def select_components(lib: Library, spec: Spec, sizing: SizingResult,
                       cap_units_floor: int = 1) -> SelectedComponents:
-    """Run all three selectors and collect their notes into one result."""
+    """Run all selectors and collect their notes into one result."""
     mosfet = select_mosfet(lib, spec, sizing)
     inductor = select_inductor(lib, sizing)
     capacitor, cap_notes = select_capacitor(lib, spec, sizing,
                                             cap_units_floor=cap_units_floor)
+    gate_driver, driver_notes = select_gate_driver(lib, mosfet, sizing.topology)
+    controller, ctl_notes = select_controller(lib, spec, sizing)
 
-    notes = list(cap_notes)
+    notes = list(cap_notes) + driver_notes + ctl_notes
     notes.append(
         f"MOSFET: {mosfet.part_number} (Rds_on={mosfet.Rds_on * 1e3:.2f} mOhm, "
         f"Vds_max={mosfet.Vds_max:.0f} V, Id_max={mosfet.Id_max:.0f} A)"
@@ -237,4 +358,5 @@ def select_components(lib: Library, spec: Spec, sizing: SizingResult,
         f"{sizing.C_min * 1e6:.1f} uF, margin {capacitor.C / sizing.C_min:.2f}x, "
         f"ESR={capacitor.ESR * 1e3:.1f} mOhm)"
     )
-    return SelectedComponents(mosfet=mosfet, inductor=inductor, capacitor=capacitor, notes=notes)
+    return SelectedComponents(mosfet=mosfet, inductor=inductor, capacitor=capacitor,
+                              gate_driver=gate_driver, controller=controller, notes=notes)

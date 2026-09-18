@@ -1,0 +1,59 @@
+category: controllers
+# Curated from public manufacturer datasheets (Tier-1 static library).
+# Units: V, Hz, %, degC.
+# All four are VOLTAGE-mode parts (the compensator this project designs is a
+# Type III voltage-mode network). Peak-current-mode parts are deliberately
+# absent until the control-loop module supports them.
+parts:
+  - part_number: TPS40057PWPR
+    manufacturer: Texas Instruments
+    control_law: voltage
+    fsw_min_hz: 100.0e3
+    fsw_max_hz: 1.0e6
+    v_ref: 0.7
+    v_ref_tol_percent: 1.0
+    package: TSSOP-16
+    Tj_max: 125.0
+    datasheet:
+      url: "https://www.ti.com/product/TPS40057"
+      page: 1
+      note: "sync buck VM controller, Vin 8-40V, feed-forward, 0.7V ref <1%; fsw max 1 MHz is the datasheet line, fsw min ~100 kHz is a practical-design estimate (oscillator is resistor-programmed)"
+  - part_number: LM27402MHX
+    manufacturer: Texas Instruments
+    control_law: voltage
+    fsw_min_hz: 200.0e3
+    fsw_max_hz: 1.2e6
+    v_ref: 0.6
+    v_ref_tol_percent: 1.0
+    package: VQFN-16
+    Tj_max: 150.0
+    datasheet:
+      url: "https://www.ti.com/product/LM27402"
+      page: 1
+      note: "sync buck VM controller, Vin 3-20V, DCR/shunt OCP, 0.6V ref +/-1%, fsw 200kHz-1.2MHz"
+  - part_number: SG3525A
+    manufacturer: onsemi
+    control_law: voltage
+    fsw_min_hz: 100.0
+    fsw_max_hz: 400.0e3
+    v_ref: 5.1
+    v_ref_tol_percent: 1.0
+    package: DIP-16
+    Tj_max: 150.0
+    datasheet:
+      url: "https://www.onsemi.com/pdf/datasheet/sg3525a-d.pdf"
+      page: 1
+      note: "classic VM PWM, 8-35V operation, oscillator 100Hz-400kHz, 5.1V ref (+/-1% typ)"
+  - part_number: TL494
+    manufacturer: Texas Instruments
+    control_law: voltage
+    fsw_min_hz: 1.0e3
+    fsw_max_hz: 300.0e3
+    v_ref: 5.0
+    v_ref_tol_percent: 5.0
+    package: DIP-16
+    Tj_max: 150.0
+    datasheet:
+      url: "https://www.ti.com/lit/gpn/TL494"
+      page: 1
+      note: "legacy VM PWM, oscillator 1kHz-300kHz, 5V ref (tolerance varies by manufacturer grade; 5% assumed conservatively)"

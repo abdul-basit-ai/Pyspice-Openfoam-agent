@@ -1,0 +1,51 @@
+category: gate_drivers
+# Curated from public manufacturer datasheets (Tier-1 static library).
+# Units: V, A, ns, degC/W, degC.
+# Values are datasheet TYPICAL figures at the datasheet's stated test
+# conditions; peak currents are the datasheet headline peaks. Verify against
+# the linked datasheet before promoting any derived design number.
+# Starter curation: one fast low-side, one strong low-side, one half-bridge
+# (synchronous buck). Grow as designs demand.
+parts:
+  # --- low-side, fast + symmetric (boost / buck_boost control & sync FETs) ---
+  - part_number: UCC27517DBV
+    manufacturer: Texas Instruments
+    drive_voltage_min_v: 4.5
+    drive_voltage_max_v: 18.0
+    peak_source_a: 4.0
+    peak_sink_a: 4.0
+    propagation_delay_ns: 13.0
+    package: SOT-23-5
+    Tj_max: 150.0
+    datasheet:
+      url: "https://www.ti.com/lit/gpn/UCC27517"
+      page: 1
+      note: "single-channel low-side, 4A/4A at VDD=12V, dual input; tpd ~13 ns typ"
+  # --- low-side, high peak drive (large-gate MOSFETs at 100-500 kHz) ---
+  - part_number: TC4420EOA
+    manufacturer: Microchip Technology
+    drive_voltage_min_v: 4.5
+    drive_voltage_max_v: 18.0
+    peak_source_a: 6.0
+    peak_sink_a: 6.0
+    propagation_delay_ns: 55.0
+    package: SOIC-8
+    Tj_max: 150.0
+    datasheet:
+      url: "https://ww1.microchip.com/downloads/en/DeviceDoc/21419D.pdf"
+      page: 1
+      note: "non-inverting single low-side, CMOS push-pull, 6A peak; tpd 55 ns typ"
+  # --- half-bridge with bootstrap (synchronous buck HS+LS from one IC) ---
+  - part_number: LM5107MAX
+    manufacturer: Texas Instruments
+    drive_voltage_min_v: 8.0
+    drive_voltage_max_v: 14.0
+    peak_source_a: 1.3
+    peak_sink_a: 1.4
+    propagation_delay_ns: 56.0
+    package: SOIC-8
+    Tj_max: 150.0
+    datasheet:
+      url: "https://www.ti.com/lit/gpn/LM5107"
+      page: 1
+      note: "100V half-bridge (sync buck), VDD 8-14V per UVLO range; tpd ~56 ns"

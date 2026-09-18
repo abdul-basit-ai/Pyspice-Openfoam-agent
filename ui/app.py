@@ -253,6 +253,38 @@ def tab_results(state: dict | None, artifacts: dict) -> None:
         )
         st.json(thermal.get("tj_per_device_C", {}))
 
+    # Phase 6/8 transient step tests (open-loop plant response)
+    stp = artifacts.get("step_tests")
+    if stp:
+        st.subheader("Transient step tests (open-loop plant)")
+        rows = []
+        for kind in ("load_step", "input_step"):
+            d = stp.get(kind)
+            if not d or "error" in d:
+                continue
+            rows.append({
+                "test": kind,
+                "under/overshoot V": f"{d.get('undershoot_V', 0):.3f} / {d.get('overshoot_V', 0):.3f}",
+                "settling": (f"{d.get('settling_time_us')} µs" if d.get("settled") else "not settled"),
+                "V before → after": f"{d.get('v_before')} → {d.get('v_final')} V",
+            })
+        if rows:
+            st.dataframe(rows, use_container_width=True)
+            st.caption(stp.get("note", ""))
+
+    # Phase 8 operating-condition sweep
+    sw = artifacts.get("sweep")
+    if sw and sw.get("points"):
+        st.subheader(f"Operating-point sweep ({sw.get('mode', '?')})")
+        st.dataframe(sw["points"], use_container_width=True)
+        st.caption(sw.get("note", ""))
+
+    # Phase 14 Pareto finalists (CHT-verified)
+    po = artifacts.get("pareto")
+    if po and po.get("finalists"):
+        st.subheader("Pareto finalists (NSGA-II + CHT verification)")
+        st.dataframe(po["finalists"], use_container_width=True)
+
 
 # ---------------- background run ----------------
 

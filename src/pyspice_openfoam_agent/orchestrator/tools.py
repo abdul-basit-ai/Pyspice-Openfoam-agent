@@ -323,6 +323,62 @@ TOOL_SCHEMAS = [
         },
     },
     {
+        "name": "run_sweeps",
+        "description": (
+            "Phase 8 operating-condition sweep. mode=load sweeps the load "
+            "current on the FIXED servo-trimmed design (text surgery on Rload; "
+            "reports load regulation/ripple/efficiency per point). mode=vin "
+            "sweeps input corners re-servoing the duty per point via the real "
+            "pipeline (child runs). Bounded: 3 points by default."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "enum": ["load", "vin"],
+                         "description": "sweep dimension (default load)"},
+                "points": {"type": "array", "items": {"type": "number"},
+                           "description": "explicit sweep points: A (load) or V (vin)"},
+            },
+        },
+    },
+    {
+        "name": "run_step_tests",
+        "description": (
+            "Phase 6/8 transient tests on the simulated netlist: step the load "
+            "up and the input rail, measure output under/overshoot and settling "
+            "time. OPEN-LOOP plant response (the rig has no feedback loop); the "
+            "compensated response is validated by analyze_control_loop margins. "
+            "Call after run_spice (uses the servo-trimmed netlist on disk)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "step_fraction": {"type": "number",
+                                  "description": "load step as a fraction of Iout (default 0.5)"},
+                "input_step_frac": {"type": "number",
+                                    "description": "input rail step fraction (default 0.10; 0 skips)"},
+            },
+        },
+    },
+    {
+        "name": "optimize_pareto",
+        "description": (
+            "NSGA-II over (MOSFET, fsw, L, airflow) for efficiency vs Tj with "
+            "the reduced-order thermal tier; top finalists get a full CHT "
+            "verification solve. Bounded budget (pop 16 / 8 generations by "
+            "default). Call after select_components so the library is loaded "
+            "and the spec is set."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "pop_size": {"type": "integer", "description": "population (default 16)"},
+                "n_gen": {"type": "integer", "description": "generations (default 8)"},
+                "finalists": {"type": "integer", "description": "CHT-verified finalists (default 3)"},
+            },
+        },
+    },
+    {
         "name": "read_design_memory",
         "description": "Look up past design outcomes for a spec signature.",
         "parameters": {
@@ -406,12 +462,16 @@ def tool_select_components(ctx: ToolContext) -> dict:
     ctx.artifacts["components"] = {
         "mosfet": sel.mosfet.part_number, "inductor": sel.inductor.part_number,
         "capacitor": sel.capacitor.part_number,
+        "gate_driver": sel.gate_driver.part_number if sel.gate_driver else None,
+        "controller": sel.controller.part_number if sel.controller else None,
     }
     return {
         "mosfet": sel.mosfet.part_number,
         "Rds_on_mOhm": round(sel.mosfet.Rds_on * 1e3, 2),
         "inductor": sel.inductor.part_number,
         "capacitor": sel.capacitor.part_number,
+        "gate_driver": sel.gate_driver.part_number if sel.gate_driver else "none available",
+        "controller": sel.controller.part_number if sel.controller else "none available",
         "screening_warnings": verdict.warnings,
         "notes": sel.notes,
     }
@@ -643,6 +703,7 @@ def extract_losses_for(ctx: ToolContext, run):
         run.result, ctx.selected.mosfet, ctx.selected.inductor.L, ctx.selected.inductor.DCR,
         vin=ctx.spec.Vin, vout=ctx.spec.Vout, fsw=ctx.spec.fsw,
         topology=ctx.sizing.topology, settle_time=run.steady_state.cycle_time,
+        cap_esr=ctx.selected.capacitor.ESR, iout=ctx.spec.Iout,
     )
 
 
@@ -676,6 +737,7 @@ def tool_run_thermal(ctx: ToolContext, v_in_m_s: float | None = None) -> dict:
                 ctx.selected.inductor.DCR,
                 vin=ctx.spec.Vin, vout=ctx.spec.Vout, fsw=ctx.spec.fsw,
                 topology=ctx.sizing.topology, settle_time=tran.steady_state.cycle_time,
+                cap_esr=ctx.selected.capacitor.ESR, iout=ctx.spec.Iout,
             )
         geo = build_board_geometry(ctx.selected.mosfet)
         # Fresh case dir per solve (audit fix: every call used the same
@@ -838,6 +900,253 @@ def tj_per_device_C(result) -> dict:
     return {k: round(v - 273.15, 2) for k, v in result.tj_per_device.items()}
 
 
+def tool_run_sweeps(ctx: ToolContext, mode: str = "load",
+                    points: list[float] | None = None) -> dict:
+    """Phase 8 advanced: operating-condition sweep on real simulations.
+
+    load: fixed design (servo-trimmed netlist), Rload replaced per point —
+          measures load regulation / ripple / efficiency across loads.
+    vin:  re-enters the pipeline per corner (child contexts, sizing -> build ->
+          servo'd run_spice at each Vin) — an open-loop rig cannot hold Vout
+          across Vin without re-trimming the duty.
+    Temperature/tolerance sweeps are descoped (no temperature-dependent
+    component models in the rig) — stated, not half-implemented.
+    """
+    if ctx.netlist_path is None or ctx.spec is None or ctx.selected is None:
+        return {"error": "call build_netlist + run_spice first (needs the "
+                         "servo-trimmed netlist)"}
+    if mode == "load":
+        from pyspice_openfoam_agent.spice.sweeps import run_load_sweep
+
+        loads = [float(p) for p in points] if points else [
+            0.5 * ctx.spec.Iout, ctx.spec.Iout, 1.1 * ctx.spec.Iout]
+        if not (0 < len(loads) <= 6):
+            return {"error": f"load sweep supports 1..6 points, got {len(loads)}"}
+        try:
+            pts = run_load_sweep(
+                ctx.netlist_path.read_text(encoding="utf-8"), ctx.spec.fsw,
+                ctx.spec.Vout, ctx.spec.Iout, ctx.spec.Vin, loads,
+                expected_level=ctx.spec.Vout)
+        except Exception as e:  # noqa: BLE001 — tool contract
+            return {"error": f"load sweep failed: {e}"}
+        payload_points = [
+            {"setpoint": p.setpoint,
+             "vout_mean": round(p.vout_mean, 4) if p.vout_mean is not None else None,
+             "ripple_mV": round(p.ripple_pp * 1e3, 2) if p.ripple_pp is not None else None,
+             "efficiency_waveform": (round(p.efficiency, 4)
+                                     if p.efficiency is not None else None),
+             "converged": p.converged, **({"note": p.note} if p.note else {})}
+            for p in pts
+        ]
+        ctx.artifacts["sweep"] = {"mode": "load", "points": payload_points}
+        return {"mode": "load", "points": payload_points,
+                "note": "fixed design; Vout shift across loads is the open-loop "
+                        "load regulation measurement. efficiency_waveform is the "
+                        "ideal-switch rig's Pout/Pin — an UPPER bound (modeled "
+                        "crossover/gate loss is absent from ideal switches); see "
+                        "run_spice's loss-model efficiency for the design number"}
+    if mode == "vin":
+        vins = [float(p) for p in points] if points else [
+            0.9 * ctx.spec.Vin, ctx.spec.Vin, 1.1 * ctx.spec.Vin]
+        if not (0 < len(vins) <= 6):
+            return {"error": f"vin sweep supports 1..6 points, got {len(vins)}"}
+        from pyspice_openfoam_agent.netlist.selector import (
+            SelectedComponents,
+            select_capacitor,
+            select_inductor,
+        )
+
+        rows: list[dict] = []
+        for n, vin_pt in enumerate(vins, 1):
+            child = ToolContext(run_dir=Path(ctx.run_dir) / f"sweep_vin_{n}",
+                                library=ctx.library, v_in_default=ctx.v_in_default)
+            try:
+                spec2 = Spec(Vin=vin_pt, Vout=ctx.spec.Vout, Iout=ctx.spec.Iout,
+                             fsw=ctx.spec.fsw, Vripple=ctx.spec.Vripple,
+                             ripple_ratio=ctx.spec.ripple_ratio,
+                             topology_constraint=ctx.sizing.topology)
+                sizing2 = size(spec2)
+                sel2 = SelectedComponents(
+                    mosfet=ctx.selected.mosfet,
+                    inductor=select_inductor(ctx.library, sizing2),
+                    capacitor=select_capacitor(ctx.library, spec2, sizing2)[0],
+                )
+                child.spec, child.sizing, child.selected = spec2, sizing2, sel2
+                nb = tool_build_netlist(child)
+                if "error" in nb:
+                    raise RuntimeError(nb["error"])
+                sp = tool_run_spice(child)
+                if "error" in sp:
+                    raise RuntimeError(sp["error"])
+                rows.append({
+                    "setpoint": f"Vin={vin_pt:.2f} V",
+                    "vout_mean": sp.get("servo_vout_V"),
+                    "ripple_mV": sp.get("ripple_mV"),
+                    "efficiency": sp.get("efficiency"), "converged": True,
+                    "run_dir": str(child.run_dir),
+                })
+            except Exception as e:  # noqa: BLE001 — record the point, keep sweeping
+                rows.append({"setpoint": f"Vin={vin_pt:.2f} V", "converged": False,
+                             "note": f"corner failed: {e}"})
+        ctx.artifacts["sweep"] = {"mode": "vin", "points": rows}
+        return {"mode": "vin", "points": rows,
+                "note": "duty re-servoed per corner (child pipeline runs)"}
+    return {"error": f"unknown sweep mode {mode!r} — use 'load' or 'vin'"}
+
+
+def tool_run_step_tests(ctx: ToolContext, step_fraction: float = 0.5,
+                        input_step_frac: float | None = 0.10) -> dict:
+    """Phase 6 checkpoint / Phase 8 advanced: load-step + input-step tests on
+    the servo-trimmed netlist (the exact one run_spice simulated). Measures
+    the OPEN-LOOP plant response; the compensated response is validated by
+    analyze_control_loop's margins on the averaged model."""
+    from pyspice_openfoam_agent.spice.step_tests import (
+        StepTestError,
+        run_input_step,
+        run_load_step,
+    )
+
+    if ctx.netlist_path is None or ctx.selected is None or ctx.spec is None:
+        return {"error": "call build_netlist + run_spice first (needs the "
+                         "servo-trimmed netlist and the selected cap)"}
+    text = ctx.netlist_path.read_text(encoding="utf-8")
+    c_out = ctx.selected.capacitor.C
+    results: dict = {}
+
+    def _fmt(kind: str, r) -> dict:
+        return {
+            "kind": kind, "v_before": round(r.v_before, 3),
+            "v_final": round(r.v_final, 3),
+            "undershoot_V": round(r.undershoot_v, 3),
+            "overshoot_V": round(r.overshoot_v, 3),
+            "settling_time_us": (round(r.settling_time_s * 1e6, 1)
+                                 if r.settling_time_s is not None else None),
+            "settled": r.settling_time_s is not None,
+        }
+
+    try:
+        ls = run_load_step(text, ctx.spec.fsw, ctx.spec.Vout, ctx.spec.Iout,
+                           c_out, step_fraction=step_fraction)
+        results["load_step"] = _fmt("load_step", ls)
+    except (StepTestError, Exception) as e:  # noqa: BLE001 — tool contract
+        results["load_step"] = {"error": f"load-step test failed: {e}"}
+    if input_step_frac:
+        try:
+            iv = run_input_step(text, ctx.spec.fsw, ctx.spec.Vout, ctx.spec.Iout,
+                                c_out, dv_frac=float(input_step_frac))
+            results["input_step"] = _fmt("input_step", iv)
+        except (StepTestError, Exception) as e:  # noqa: BLE001
+            results["input_step"] = {"error": f"input-step test failed: {e}"}
+
+    ctx.artifacts["step_tests"] = results
+    n_err = sum(1 for v in results.values() if "error" in v)
+    payload = dict(results)
+    payload["open_loop"] = True
+    payload["note"] = ("plant (open-loop) transient response incl. DC droop; the "
+                       "compensated loop is validated by analyze_control_loop margins")
+    if n_err == len(results):
+        return {"error": "all step tests failed", **results}
+    return payload
+
+
+def tool_optimize_pareto(ctx: ToolContext, pop_size: int = 16, n_gen: int = 8,
+                         finalists: int = 3) -> dict:
+    """Phase 14: NSGA-II (reduced-order tier) + full-CHT verification of the
+    top finalists (two-tier fidelity policy). Finalists re-enter the REAL
+    pipeline (sizing -> selection -> SPICE -> CHT) on child contexts."""
+    if ctx.spec is None:
+        return {"error": "call size_converter first (optimizer needs the spec)"}
+    from pyspice_openfoam_agent.design.object import Requirements
+    from pyspice_openfoam_agent.optimization.pareto import (
+        OptimizationError,
+        run_pareto,
+    )
+
+    req = Requirements(
+        Vin=ctx.spec.Vin, Vout=ctx.spec.Vout, Iout=ctx.spec.Iout,
+        fsw_khz=ctx.spec.fsw / 1e3, ripple_v=ctx.spec.Vripple,
+        ripple_ratio=ctx.spec.ripple_ratio,
+    )
+    try:
+        front = run_pareto(ctx.library, req, pop_size=max(8, int(pop_size)),
+                           n_gen=max(2, int(n_gen)))
+    except OptimizationError as e:
+        return {"error": f"optimization failed: {e}"}
+    if not front:
+        return {"error": "optimizer returned an empty front — no candidate "
+                         "cleared the screening (check the spec vs library)"}
+
+    # --- two-tier policy: verify top-K finalists with full CHT ---
+    k = max(0, min(int(finalists), 5))
+    top = sorted(front, key=lambda c: -c.efficiency)[:k]
+    verified: list[dict] = []
+    from pyspice_openfoam_agent.netlist.selector import (
+        SelectedComponents,
+        select_capacitor,
+        select_inductor,
+    )
+
+    for n, cand in enumerate(top, 1):
+        entry = {
+            "mosfet": cand.mosfet_pn, "fsw_khz": cand.fsw_khz,
+            "L_uh": cand.L_uh, "v_in_m_s": cand.v_in_m_s,
+            "efficiency_est": cand.efficiency, "tj_est_C": cand.tj_max_c,
+        }
+        mos = ctx.library.mosfets.get(cand.mosfet_pn)
+        if mos is None:
+            entry.update(verified=False, reason="MOSFET not in library")
+            verified.append(entry)
+            continue
+        child = ToolContext(run_dir=Path(ctx.run_dir) / f"pareto_{n}",
+                            library=ctx.library, v_in_default=cand.v_in_m_s)
+        try:
+            spec2 = Spec(Vin=ctx.spec.Vin, Vout=ctx.spec.Vout, Iout=ctx.spec.Iout,
+                         fsw=cand.fsw_khz * 1e3, Vripple=ctx.spec.Vripple,
+                         ripple_ratio=ctx.spec.ripple_ratio)
+            sizing2 = size(spec2)
+            sel2 = SelectedComponents(
+                mosfet=mos,
+                inductor=select_inductor(ctx.library, sizing2),
+                capacitor=select_capacitor(ctx.library, spec2, sizing2)[0],
+            )
+            child.spec, child.sizing, child.selected = spec2, sizing2, sel2
+            nb = tool_build_netlist(child)
+            if "error" in nb:
+                raise RuntimeError(f"netlist build failed: {nb['error']}")
+            spice = tool_run_spice(child)
+            if "error" in spice:
+                raise RuntimeError(f"SPICE failed: {spice['error']}")
+            th = tool_run_thermal(child, v_in_m_s=cand.v_in_m_s)
+            if "error" in th:
+                raise RuntimeError(f"CHT failed: {th['error']}")
+            entry.update(
+                verified=True, cht_tj_max_C=th.get("tj_max_C"),
+                measured_efficiency=spice.get("efficiency"),
+                tj_per_device_C=th.get("tj_per_device_C"),
+                run_dir=str(child.run_dir),
+            )
+        except Exception as e:  # noqa: BLE001 — tool contract, not exception
+            entry.update(verified=False, reason=f"verification pipeline failed: {e}")
+        verified.append(entry)
+
+    ctx.artifacts["pareto"] = {
+        "n_front": len(front),
+        "front": [vars(c) for c in front],
+        "finalists": verified,
+    }
+    return {
+        "n_front": len(front),
+        "finalists": verified,
+        "front": [
+            {"mosfet": c.mosfet_pn, "fsw_khz": c.fsw_khz, "L_uh": c.L_uh,
+             "v_in_m_s": c.v_in_m_s, "eff": c.efficiency, "tj_C": c.tj_max_c}
+            for c in front
+        ],
+        "note": ("front = reduced-order tier estimates; finalists carry "
+                 "CHT-verified numbers (verified=true)"),
+    }
+
+
 def _mitigation_evaluate(ctx: ToolContext):
     """Rebuild-and-solve callback for the Phase 10 mitigation loop: each
     candidate re-enters the REAL pipeline (sizing -> selection -> SPICE ->
@@ -869,6 +1178,11 @@ def _mitigation_evaluate(ctx: ToolContext):
                 capacitor=select_capacitor(ctx.library, spec2, sizing2)[0],
             )
             child.spec, child.sizing, child.selected = spec2, sizing2, sel2
+            # build the child's netlist BEFORE simulating (run_spice requires
+            # it — the same gap the Pareto finalist path had, audit fix)
+            nb = tool_build_netlist(child)
+            if "error" in nb:
+                raise MitigationError(f"candidate netlist build failed: {nb['error']}")
             spice = tool_run_spice(child)
             if "error" in spice:
                 raise MitigationError(f"candidate SPICE failed: {spice['error']}")
@@ -1071,6 +1385,12 @@ def dispatch(ctx: ToolContext, name: str, args: dict) -> ToolResult:
             payload = tool_analyze_control_loop(ctx, **args)
         elif name == "electro_thermal_converge":
             payload = tool_electro_thermal_converge(ctx, **args)
+        elif name == "run_step_tests":
+            payload = tool_run_step_tests(ctx, **args)
+        elif name == "run_sweeps":
+            payload = tool_run_sweeps(ctx, **args)
+        elif name == "optimize_pareto":
+            payload = tool_optimize_pareto(ctx, **args)
         elif name == "read_design_memory":
             payload = tool_read_design_memory(ctx, **args)
         else:
