@@ -30,7 +30,7 @@ streamlit run ui/app.py              # UI (inside the container)
 
 **Canonical environment is the Docker container** (`docker/Dockerfile`: Ubuntu 22.04, OpenFOAM v2406 openfoam.com line — entrypoint sources its bashrc, ngspice + libngspice symlink, pinned PySpice 1.5 / numpy <2.0). On the Windows host (ngspice installed per README + PySpice DLL layout), everything except the real-CHT `test_solver.py` tests runs natively; those skip unless `chtMultiRegionSimpleFoam` is on PATH (in-container, or source OpenFOAM's bashrc first on Linux).
 
-Expected baseline after the 2026-09 audit (see AUDIT.md): **158 passed / 0 failed in-container** (~9.5 min, includes the real CHT solves); on the Windows host: **151 passed / 7 env-gated skips** (the real-CHT tests skip). `scripts/topology_smoke.py` must report ALL PASSED for buck/boost/buck_boost.
+Expected baseline after the 2026-09 Groups A–C (see AUDIT.md + remain_plan.md DONE log): **205 passed / 6 env-gated skips on the Windows host** (the real-CHT tests skip); the in-container count shifts upward from the audit's 158 — re-run `dtest.sh` to pin it. `scripts/topology_smoke.py` must report ALL PASSED for buck/boost/buck_boost.
 
 LLM access: copy `.env.example` → `.env` and set `OPENROUTER_API_KEY` (`OPENROUTER_MODEL` defaults to `deepseek/deepseek-v4-flash-0731`). Tests use recorded mock LLM responses — the suite never calls the API.
 

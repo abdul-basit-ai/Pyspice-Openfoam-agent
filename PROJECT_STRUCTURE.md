@@ -22,7 +22,8 @@ Pyspice-Openfoam-agent/
 │   ├── library/                      # Phase 1: component library + schema
 │   │   ├── schema.py                 #   Pydantic models (sanity ranges on datasheet fields)
 │   │   ├── loader.py                 #   load + query (filter by rating)
-│   │   └── data/                     #   mosfets.yaml, inductors.yaml, capacitors.yaml
+│   │   └── data/                     #   mosfets/inductors/capacitors + gate_drivers/
+│   │   │                             #   controllers/diodes (IC categories, Group A1)
 │   ├── sizing/                       # Phase 2: feasibility, topology, sizing
 │   │   ├── spec_parser.py            #   NL spec -> Requirements (regex + ask policy)
 │   │   ├── engine.py                 #   Spec/feasibility/classify/analytical L,C sizing
@@ -40,7 +41,11 @@ Pyspice-Openfoam-agent/
 │   │   │                             #     crashes on a second instance per process)
 │   │   ├── steady_state.py           #   cycle-to-cycle detector (sustained-flatness +
 │   │   │                             #     expected-level guards)
-│   │   └── losses.py                 #   topology-aware per-device loss extraction
+│   │   ├── losses.py                 #   topology-aware per-device loss extraction
+│   │   ├── step_tests.py             #   Phase 6/8: load/input step injection + response
+│   │   │                             #     measurement (open-loop plant; Group A3)
+│   │   └── sweeps.py                 #   Phase 8: load sweep (Rload surgery) on the
+│   │                                 #     fixed servo'd design (Group A4)
 │   ├── control_loop/design.py        # Phase 6: Type III compensator, delay-aware margins
 │   ├── thermal/                      # Phases 6-10: board, mesh, CHT solve, extraction
 │   │   ├── board.py                  #   JEDEC JESD51-3 geometry (114.3 x 76.2 mm)

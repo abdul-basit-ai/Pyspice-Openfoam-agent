@@ -26,7 +26,7 @@ from pathlib import Path
 from pyspice_openfoam_agent.library.loader import Library, load_library
 from pyspice_openfoam_agent.netlist.builder import build_and_write, build_netlist, write_netlist
 from pyspice_openfoam_agent.netlist.selector import select_components
-from pyspice_openfoam_agent.sizing.engine import Spec, size
+from pyspice_openfoam_agent.sizing.engine import SizingResult, Spec, size
 from pyspice_openfoam_agent.spice.losses import extract_losses, efficiency_from_losses
 from pyspice_openfoam_agent.spice.runner import run_transient, run_until_steady_state
 from pyspice_openfoam_agent.thermal.board import AMBIENT_TEMP_C, build_board_geometry
@@ -250,14 +250,31 @@ TOOL_SCHEMAS = [
                 "Vripple": {"type": "number", "description": "output ripple budget V"},
                 "topology": {"type": "string", "enum": ["buck", "boost", "buck_boost"],
                              "description": "optional: force the converter family"},
+                "vin_min": {"type": "number",
+                            "description": "input range low endpoint V (with vin_max: sized at BOTH corners, worst of each)"},
+                "vin_max": {"type": "number",
+                            "description": "input range high endpoint V; design pins at this corner"},
             },
             "required": ["Vin", "Vout", "Iout", "fsw_khz", "Vripple"],
         },
     },
     {
         "name": "select_components",
-        "description": "Pick real MOSFET/inductor/capacitor from the library with margins.",
-        "parameters": {"type": "object", "properties": {}},
+        "description": (
+            "Pick real MOSFET/inductor/capacitor (+ gate driver/controller ICs) "
+            "from the library with margins. Optional part-number overrides "
+            "(user/UI substitutions): the part MUST already exist in the "
+            "library — invented part numbers are rejected, and the safety "
+            "screening gate (Vds/Isat/V_rated) still applies to overrides."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "mosfet": {"type": "string", "description": "override: library MOSFET part number"},
+                "inductor": {"type": "string", "description": "override: library inductor part number"},
+                "capacitor": {"type": "string", "description": "override: library capacitor part number"},
+            },
+        },
     },
     {
         "name": "build_netlist",
@@ -279,6 +296,8 @@ TOOL_SCHEMAS = [
             "type": "object",
             "properties": {
                 "v_in_m_s": {"type": "number", "description": "airflow speed m/s (default 1.0)"},
+                "fidelity": {"type": "string", "enum": ["fast", "balanced", "high"],
+                             "description": "mesh preset (default balanced); fast ~1/4 the cells, high ~4x"},
             },
         },
     },
@@ -416,15 +435,73 @@ def spec_signature(Vin: float, Vout: float, Iout: float, fsw_khz: float) -> str:
 def tool_size_converter(ctx: ToolContext, Vin: float, Vout: float, Iout: float,
                         fsw_khz: float, Vripple: float,
                         ripple_ratio: float | None = None,
-                        topology: str | None = None) -> dict:
+                        topology: str | None = None,
+                        vin_min: float | None = None,
+                        vin_max: float | None = None) -> dict:
     kwargs = dict(Vin=Vin, Vout=Vout, Iout=Iout, fsw=fsw_khz * 1e3, Vripple=Vripple)
     if ripple_ratio is not None:
         kwargs["ripple_ratio"] = ripple_ratio
     if topology is not None:
         kwargs["topology_constraint"] = topology
     try:
-        spec = Spec(**kwargs)
-        result = size(spec)
+        if (vin_min is None) != (vin_max is None):
+            return {"error": "vin_min and vin_max must be given together "
+                             "(an input range has two endpoints)"}
+        if vin_min is not None and vin_max is not None:
+            # C2: input-range spec — the engine is single-Vin, so size at
+            # BOTH corners and keep the worst of each stress quantity. The
+            # design point is pinned at the voltage-stress endpoint (max),
+            # matching the parser's B1 semantics.
+            vin_min, vin_max = float(vin_min), float(vin_max)
+            if not (0.0 < vin_min <= vin_max):
+                return {"error": f"input range {vin_min}-{vin_max} V invalid "
+                                 "(need 0 < min <= max)"}
+            base = dict(kwargs)
+            base["Vin"] = vin_max
+            forced = topology
+            corner_results = []
+            corner_topos = set()
+            for corner_vin in (vin_min, vin_max):
+                ckw = dict(kwargs)
+                ckw["Vin"] = corner_vin
+                corner_results.append(size(Spec(**ckw)))
+                corner_topos.add(corner_results[-1].topology)
+            if len(corner_topos) > 1 and forced is None:
+                # the ratio crosses unity inside the range: only the
+                # 4-switch buck_boost covers the whole span (a single-corner
+                # family would be infeasible at the other end)
+                forced = "buck_boost"
+                corner_results = []
+                for corner_vin in (vin_min, vin_max):
+                    ckw = dict(kwargs)
+                    ckw["Vin"] = corner_vin
+                    ckw["topology_constraint"] = forced
+                    corner_results.append(size(Spec(**ckw)))
+            # electrical seed (duty etc.) at the pinned design point
+            base["topology_constraint"] = forced or corner_results[0].topology
+            spec = Spec(**base)
+            seed = size(spec)
+            result = SizingResult(
+                topology=seed.topology,
+                D=seed.D,  # duty consistent with the PINNED design Vin
+                L_min=max(r.L_min for r in corner_results),
+                C_min=max(r.C_min for r in corner_results),
+                di_pp=max(r.di_pp for r in corner_results),
+                I_L_avg=max(r.I_L_avg for r in corner_results),
+                I_peak=max(r.I_peak for r in corner_results),
+                I_rms_sw=max(r.I_rms_sw for r in corner_results),
+                notes=list(seed.notes) + [
+                    f"input range {vin_min:g}-{vin_max:g} V: sized at BOTH "
+                    f"corners, worst of each (L_min "
+                    f"{max(r.L_min for r in corner_results) * 1e6:.2f} uH, I_peak "
+                    f"{max(r.I_peak for r in corner_results):.2f} A)",
+                    f"design point pinned at Vin={vin_max:g} V (worst-case "
+                    f"voltage stress); duty/electrical seed at the pinned corner",
+                ],
+            )
+        else:
+            spec = Spec(**kwargs)
+            result = size(spec)
     except Exception as e:
         return {"error": f"spec infeasible: {e}"}
     ctx.spec = spec
@@ -442,12 +519,20 @@ def tool_size_converter(ctx: ToolContext, Vin: float, Vout: float, Iout: float,
         Vin=spec.Vin, Vout=spec.Vout, Iout=spec.Iout,
         fsw_khz=spec.fsw / 1e3, ripple_v=spec.Vripple,
         ripple_ratio=spec.ripple_ratio,
+        vin_min=float(vin_min) if (vin_min is not None and vin_max is not None) else None,
+        vin_max=float(vin_max) if (vin_min is not None and vin_max is not None) else None,
     )
     d.topology.name = result.topology
-    d.topology.rationale = next(
-        (n for n in result.notes if "ambiguous" in n.lower()),
-        f"voltage ratio Vout/Vin={spec.Vout / spec.Vin:.3f} "
-        f"-> {result.topology} (engine classification; see sizing notes)")
+    if vin_min is not None and vin_max is not None:
+        d.topology.rationale = (
+            f"input range {vin_min:g}-{vin_max:g} V: topology "
+            f"{result.topology}, sized at both corners (worst of each), "
+            f"design point pinned at Vin={vin_max:g} V")
+    else:
+        d.topology.rationale = next(
+            (n for n in result.notes if "ambiguous" in n.lower()),
+            f"voltage ratio Vout/Vin={spec.Vout / spec.Vin:.3f} "
+            f"-> {result.topology} (engine classification; see sizing notes)")
     d.parameters = DesignParameters(
         duty_cycle=result.D, L_min_h=result.L_min, C_min_f=result.C_min,
         di_pp_a=result.di_pp, i_l_avg_a=result.I_L_avg,
@@ -469,11 +554,74 @@ def tool_size_converter(ctx: ToolContext, Vin: float, Vout: float, Iout: float,
     }
 
 
-def tool_select_components(ctx: ToolContext) -> dict:
+def tool_select_components(ctx: ToolContext, mosfet: str | None = None,
+                           inductor: str | None = None,
+                           capacitor: str | None = None) -> dict:
     if ctx.spec is None or ctx.sizing is None:
         return {"error": "call size_converter first"}
     try:
         sel = select_components(ctx.library, ctx.spec, ctx.sizing)
+        # C3/C4 part overrides (UI editor / user substitution): only parts
+        # that EXIST in the library (hallucination guardrail); the safety
+        # screening below re-checks Vds/Isat/V_rated on the overridden parts.
+        overridden: list[str] = []
+        for cat, name, table in (
+            ("mosfet", mosfet, ctx.library.mosfets),
+            ("inductor", inductor, ctx.library.inductors),
+            ("capacitor", capacitor, ctx.library.capacitors),
+        ):
+            if name is None:
+                continue
+            part = table.get(name)
+            if part is None:
+                return {"error": f"{cat} override {name!r} is not in the library "
+                                 f"— only existing parts can be selected "
+                                 f"(invented part numbers are forbidden)"}
+            setattr(sel, cat, part)
+            overridden.append(f"{cat}={name}")
+        if overridden:
+            sel.notes.append("user/UI override applied: " + ", ".join(overridden)
+                             + " — margins re-checked by screening")
+            # margin AUDIT for overridden parts: the selectors' floors no
+            # longer ran for them, so surface any margin misses as warnings
+            # (deliberate user choice allowed; the hard safety screens below
+            # still reject actual violations)
+            from pyspice_openfoam_agent.netlist.selector import (
+                C_MARGIN,
+                ID_MARGIN,
+                IRMS_MARGIN,
+                ISAT_MARGIN,
+                L_MARGIN,
+                VDS_MARGIN,
+                VRATED_MARGIN,
+                _blocking_voltage,
+            )
+
+            if mosfet is not None:
+                vb = _blocking_voltage(ctx.spec, ctx.sizing) * VDS_MARGIN
+                if sel.mosfet.Vds_max < vb:
+                    sel.notes.append(f"override MOSFET Vds_max {sel.mosfet.Vds_max:.0f} V "
+                                     f"< margin floor {vb:.0f} V")
+                if sel.mosfet.Id_max < ctx.sizing.I_peak * ID_MARGIN:
+                    sel.notes.append(f"override MOSFET Id_max {sel.mosfet.Id_max:.0f} A "
+                                     f"< margin floor {ctx.sizing.I_peak * ID_MARGIN:.1f} A")
+            if inductor is not None:
+                floors = {
+                    f"L {sel.inductor.L * 1e6:.1f} uH < {ctx.sizing.L_min * L_MARGIN * 1e6:.1f} uH":
+                        sel.inductor.L < ctx.sizing.L_min * L_MARGIN,
+                    f"Isat {sel.inductor.Isat:.1f} A < {ctx.sizing.I_peak * ISAT_MARGIN:.1f} A":
+                        sel.inductor.Isat < ctx.sizing.I_peak * ISAT_MARGIN,
+                    f"Irms {sel.inductor.Irms:.1f} A < {ctx.sizing.I_L_avg * IRMS_MARGIN:.1f} A":
+                        sel.inductor.Irms < ctx.sizing.I_L_avg * IRMS_MARGIN,
+                }
+                sel.notes.extend(f"override inductor {msg}" for msg, hit in floors.items() if hit)
+            if capacitor is not None:
+                if sel.capacitor.C < ctx.sizing.C_min * C_MARGIN:
+                    sel.notes.append(f"override capacitor C {sel.capacitor.C * 1e6:.0f} uF < "
+                                     f"{ctx.sizing.C_min * C_MARGIN * 1e6:.0f} uF margin floor")
+                if sel.capacitor.V_rated < ctx.spec.Vout * VRATED_MARGIN:
+                    sel.notes.append(f"override capacitor V_rated {sel.capacitor.V_rated:.0f} V < "
+                                     f"{ctx.spec.Vout * VRATED_MARGIN:.0f} V margin floor")
         # Phase 7 fast screening gate (audit fix: was never wired into the
         # pipeline — doomed designs sailed through to SPICE/CHT). Rejected
         # designs are returned as a structured failure the LLM can act on.
@@ -753,7 +901,8 @@ def extract_losses_for(ctx: ToolContext, run):
     )
 
 
-def tool_run_thermal(ctx: ToolContext, v_in_m_s: float | None = None) -> dict:
+def tool_run_thermal(ctx: ToolContext, v_in_m_s: float | None = None,
+                     fidelity: str = "balanced") -> dict:
     if ctx.selected is None or ctx.sizing is None:
         return {"error": "size/select first (need losses per device)"}
     # explicit 0 m/s is a legitimate request (still air) — `if v_in_m_s`
@@ -797,6 +946,7 @@ def tool_run_thermal(ctx: ToolContext, v_in_m_s: float | None = None) -> dict:
              "ls_mosfet": lb.per_device_watts["ls_mosfet"],
              "inductor": lb.per_device_watts["inductor"]},
             case_dir,
+            fidelity=fidelity,  # C1: expose the mesh accuracy-vs-runtime preset
         )
         # v_in is applied HERE (BC rewrite time) — passing it to build_case
         # used to be a silent no-op and every solve ran at 1 m/s (audit fix)
@@ -1421,7 +1571,7 @@ def dispatch(ctx: ToolContext, name: str, args: dict) -> ToolResult:
         if name == "size_converter":
             payload = tool_size_converter(ctx, **args)
         elif name == "select_components":
-            payload = tool_select_components(ctx)
+            payload = tool_select_components(ctx, **args)
         elif name == "build_netlist":
             payload = tool_build_netlist(ctx)
         elif name == "run_spice":

@@ -63,8 +63,16 @@ def _fmt_metric(value, suffix: str = "", multiplier: float = 1.0) -> str:
 # ---------------- sidebar ----------------
 
 
+@st.cache_resource(show_spinner=False)
+def _library():
+    from pyspice_openfoam_agent.library.loader import load_library
+
+    return load_library()
+
+
 def sidebar() -> dict:
     st.sidebar.title("⚡ DC-DC Synthesizer")
+    lib = _library()
     with st.sidebar.form("spec_form"):
         st.subheader("Converter spec")
         vin = st.number_input("Vin (V)", 1.0, 400.0, 12.0, 0.5)
@@ -74,6 +82,16 @@ def sidebar() -> dict:
         vrip_m = st.number_input("Vripple (mV)", 1.0, 500.0, 50.0, 5.0)
         ripple_ratio = st.slider("Inductor ripple ratio", 0.10, 0.50, 0.30, 0.05,
                                   help="Typical 0.2-0.4. Higher = smaller L, more ripple.")
+        st.subheader("Input range (optional)")
+        c1, c2 = st.columns(2)
+        vin_lo = c1.number_input("Vin min (V)", 0.0, 400.0, 0.0, 0.5,
+                                 help="Set BOTH endpoints > 0 to size at both "
+                                      "corners (worst of each); design pins at Vin max.")
+        vin_hi = c2.number_input("Vin max (V)", 0.0, 400.0, 0.0, 0.5)
+        st.subheader("Part overrides (optional)")
+        mos_pick = st.selectbox("MOSFET", ["<automatic>"] + sorted(lib.mosfets))
+        ind_pick = st.selectbox("Inductor", ["<automatic>"] + sorted(lib.inductors))
+        cap_pick = st.selectbox("Capacitor", ["<automatic>"] + sorted(lib.capacitors))
         submitted = st.form_submit_button("Run design", use_container_width=True)
     mode = st.sidebar.radio(
         "LLM mode",
@@ -88,6 +106,13 @@ def sidebar() -> dict:
     )
     task = {"Vin": vin, "Vout": vout, "Iout": iout, "fsw_khz": fsw,
             "Vripple": vrip_m / 1000.0, "ripple_ratio": ripple_ratio}
+    if 0.0 < vin_lo <= vin_hi and vin_lo < vin:
+        task["vin_min"] = vin_lo
+        task["vin_max"] = vin_hi
+    for key, pick in (("mosfet_override", mos_pick), ("inductor_override", ind_pick),
+                      ("capacitor_override", cap_pick)):
+        if pick != "<automatic>":
+            task[key] = pick  # library-validated by the tool; free text impossible
     if submitted:
         return {"action": "run", "task": task, "mode": mode}
     if existing != "<new run>":
@@ -220,7 +245,11 @@ def tab_results(state: dict | None, artifacts: dict) -> None:
                   _fmt_metric(cl.get("phase_margin_deg"), "°") if cl.get("phase_margin_deg") is not None else "N/A")
         gm = cl.get("gain_margin_db")
         c2.metric("gain margin", "∞" if gm and gm >= 40 else _fmt_metric(gm, " dB"))
-        c3.metric("crossover", _fmt_metric(cl.get("crossover_kHz"), " kHz") if cl.get("crossover_kHz") is not None else "N/A")
+        # artifact key is crossover_hz (Group C fix: the old crossover_kHz
+        # read never matched, so this metric always rendered N/A)
+        fc_hz = cl.get("crossover_hz")
+        c3.metric("crossover",
+                  _fmt_metric(fc_hz, " kHz", 1e-3) if fc_hz is not None else "N/A")
         if cl.get("passed"):
             st.success(f"PASS — {cl.get('compensator', '?')} compensator")
         else:
@@ -286,6 +315,47 @@ def tab_results(state: dict | None, artifacts: dict) -> None:
         st.dataframe(po["finalists"], use_container_width=True)
 
 
+# ---------------- compare tab (Phase 17: compare simulations) ----------------
+
+
+def tab_compare() -> None:
+    st.header("Compare runs")
+    st.caption("Pick any runs (including the live one) to compare side by side. "
+               "Missing stages show as blanks.")
+    runs = _valid_runs()
+    if not runs:
+        st.info("No completed runs yet.")
+        return
+    chosen = st.multiselect("Runs to compare", runs,
+                            default=runs[:2])
+    rows = []
+    for rid in chosen:
+        state = RunState(RUNS_DIR / rid).read() or {}
+        arts = state.get("artifacts", {}) or {}
+        sp = arts.get("spice", {}) or {}
+        cl = arts.get("control_loop", {}) or {}
+        th = arts.get("thermal", {}) or {}
+        comps = arts.get("components", {}) or {}
+        tj_map = th.get("tj_per_device_C", {}) or {}
+        rows.append({
+            "run": rid,
+            "status": state.get("status"),
+            "topology": (arts.get("sizing", {}) or {}).get("topology"),
+            "mosfet": comps.get("mosfet"),
+            "inductor": comps.get("inductor"),
+            "capacitor": comps.get("capacitor"),
+            "eff": sp.get("efficiency"),
+            "ripple mV": (round(sp["ripple_V"] * 1e3, 2)
+                          if sp.get("ripple_V") is not None else None),
+            "loss W": sp.get("losses_W"),
+            "PM °": cl.get("phase_margin_deg"),
+            "GM dB": cl.get("gain_margin_db"),
+            "Tj max °C": (round(max(tj_map.values()), 1) if tj_map else None),
+        })
+    if rows:
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+
+
 # ---------------- background run ----------------
 
 
@@ -299,12 +369,24 @@ def _run_in_background(task: dict, mode: str, run_id: str) -> None:
                     "OpenRouter (DeepSeek Flash)": "openrouter"}[mode]
         model = "deepseek/deepseek-v4-flash-0731"
         if provider == "mock":
+            size_args = {
+                "Vin": task["Vin"], "Vout": task["Vout"],
+                "Iout": task["Iout"], "fsw_khz": task["fsw_khz"],
+                "Vripple": task["Vripple"],
+            }
+            if task.get("ripple_ratio"):
+                size_args["ripple_ratio"] = task["ripple_ratio"]
+            if task.get("vin_min") and task.get("vin_max"):
+                size_args.update(vin_min=task["vin_min"], vin_max=task["vin_max"])
+            select_args = {}
+            for key, arg in (("mosfet_override", "mosfet"),
+                             ("inductor_override", "inductor"),
+                             ("capacitor_override", "capacitor")):
+                if task.get(key):
+                    select_args[arg] = task[key]
             mock = [
-                {"tool_calls": [{"name": "size_converter", "args": {
-                    "Vin": task["Vin"], "Vout": task["Vout"],
-                    "Iout": task["Iout"], "fsw_khz": task["fsw_khz"],
-                    "Vripple": task["Vripple"]}}]},
-                {"tool_calls": [{"name": "select_components", "args": {}}]},
+                {"tool_calls": [{"name": "size_converter", "args": size_args}]},
+                {"tool_calls": [{"name": "select_components", "args": select_args}]},
                 {"tool_calls": [{"name": "build_netlist", "args": {}}]},
                 {"tool_calls": [{"name": "analyze_control_loop", "args": {}}]},
                 {"tool_calls": [{"name": "run_spice", "args": {}}]},
@@ -365,7 +447,8 @@ def main() -> None:
             state = RunState(RUNS_DIR / run_id).read()
 
     artifacts = (state or {}).get("artifacts", {})
-    t1, t2, t3, t4 = st.tabs(["Pipeline", "Circuit", "Thermal", "Results"])
+    t1, t2, t3, t4, t5 = st.tabs(
+        ["Pipeline", "Circuit", "Thermal", "Results", "Compare"])
     with t1:
         tab_pipeline(state)
     with t2:
@@ -374,6 +457,8 @@ def main() -> None:
         tab_thermal(state, artifacts)
     with t4:
         tab_results(state, artifacts)
+    with t5:
+        tab_compare()
 
     # auto-refresh while a run is live (APP-1: now works because the run
     # is in a background thread; the UI thread is free to rerun)
