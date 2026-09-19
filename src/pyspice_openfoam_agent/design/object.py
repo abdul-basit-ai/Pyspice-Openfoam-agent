@@ -38,7 +38,13 @@ class DesignError(ValueError):
 
 @dataclass
 class Requirements:
-    """User constraints: hard limits + optimization objectives (P2 output)."""
+    """User constraints: hard limits + optimization objectives (P2 output).
+
+    Vin is the DESIGN point the sizing engine uses. When the user specifies
+    an input RANGE ("12-36 V"), the parser additionally records vin_min /
+    vin_max and designs at the worst-case VOLTAGE-STRESS endpoint (max) with
+    a loud assumption — the range is never silently collapsed (additive v2
+    schema fields, default None; old serialized designs load unchanged)."""
 
     Vin: float = 0.0
     Vout: float = 0.0
@@ -48,6 +54,9 @@ class Requirements:
     ripple_ratio: float = 0.30
     efficiency_target: float | None = None
     tj_max_c: float = 150.0
+    # input range endpoints when the spec gave one (None = fixed Vin)
+    vin_min: float | None = None
+    vin_max: float | None = None
     # protection (P2, goals gap: safety-relevant — ask if unspecified)
     ocp_a: float | None = None
     otp_c: float | None = None

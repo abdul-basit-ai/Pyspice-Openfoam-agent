@@ -44,10 +44,10 @@ Pipeline modules under `src/pyspice_openfoam_agent/` (each phase is one importab
 - `netlist/` — margin-based component selection (`selector.py`), `.cir` emission with ngspice lint (`builder.py`), connectivity/floating-node validation (`validate.py`).
 - `spice/` — PySpice transient loop with cycle-to-cycle steady-state detection (`steady_state.py`), topology-aware loss extraction (`losses.py`).
 - `control_loop/design.py` — Type III compensator; **phase/gain margins computed deterministically by python-control/scipy — never LLM-judged**.
-- `thermal/` — JEDEC board geometry (`board.py`), CHT case writer (`case_writer.py`: Jinja2 for the blockMeshDict skeleton in `templates/`, foamlib for per-iteration scalar edits), `solver.py` (runs `chtMultiRegionSimpleFoam` with timeout + relaxation fallback), PyVista extraction, result validation, reduced-order thermal tier, `electro_thermal.py` (fixed-point Tj loop: capped 5 iters, |ΔTj| < 2 °C, non-convergence = validation failure).
+- `thermal/` — JEDEC board geometry (`board.py`), CHT case writer (`case_writer.py` — blockMeshDict is generated PROGRAMMATICALLY from the MeshPlan; there is no Jinja2 template, foamlib is not used), `solver.py` (runs `chtMultiRegionSimpleFoam` with timeout + relaxation fallback), PyVista extraction, result validation, reduced-order thermal tier, `electro_thermal.py` (fixed-point Tj loop: capped 5 iters, |ΔTj| < 2 °C, non-convergence = validation failure).
 - `mitigation/` + `thermal/mitigation.py` — thermal-failure levers in cost order: airflow → component reselection → frequency.
 - `optimization/pareto.py` — pymoo NSGA-II over (MOSFET, fsw, L, airflow). **Two-tier fidelity policy**: every candidate uses the reduced-order thermal model; full CHT only for Pareto finalists.
-- `orchestrator/` — LangGraph ReAct loop (`graph.py`: reason → act → observe), tool layer (`tools.py`: every capability as a callable over a shared `ToolContext`), design memory (`memory/design_memory.py`).
+- `orchestrator/` — LangGraph ReAct loop (`graph.py`: reason → act → observe), tool layer (`tools.py`: every capability as a callable over a shared `ToolContext` — sizing/selection/netlist/SPICE/thermal/mitigation/control-loop/electro-thermal plus `run_step_tests` (load/input step transients), `run_sweeps` (load/Vin corners) and `optimize_pareto` (NSGA-II + CHT-verified finalists)), design memory (`memory/design_memory.py`). Every orchestrated run persists `design.json` (Phase 4 anchor), `manifest.json` (Phase 22 bundle) and `llm_provenance.jsonl` (Phase 18 trail: model, temperature=0, prompt + response per decision call) in the run dir.
 - `ui/` — Streamlit app state/renderers used by `ui/app.py` (tabs: Pipeline / Circuit / Thermal / Results; runs the orchestrator in a background thread, polls `RunState` JSON).
 
 ### Non-negotiable module contracts
@@ -70,5 +70,5 @@ Pipeline modules under `src/pyspice_openfoam_agent/` (each phase is one importab
 ## Conventions
 
 - Physics/validation logic stays deterministic and unit-tested against published worked examples (`tests/reference/regression.py`); LLM behavior is tested with recorded mocks (`tests/unit/test_orchestrator.py`).
-- Model + temperature logged for every design-decision LLM call (provenance/auditability).
+- Model + sampling settings sent on every design-decision LLM call (temperature=0) and logged with the full prompt/response to `runs/<run>/llm_provenance.jsonl` (provenance/auditability).
 - `.env` is never committed; `build_log.txt` and `docker/phase0_debug.log` are gitignored scratch.

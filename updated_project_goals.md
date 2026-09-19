@@ -1220,6 +1220,18 @@ L and C must be resized.
 
 The user can approve, reject, or modify the proposal.
 
+> **IMPLEMENTATION STATUS (2026-09-19, project decision):** Interactive
+> approval gates are **descoped for this codebase**. The empty stub packages
+> were removed (commit `55eafcc`). The engineering intent of the gates is
+> covered by the system-wide *best-effort contract*: no design change with a
+> material trade-off is ever applied silently — every mitigation lever the
+> agent pulls (airflow, reselection, frequency), every measured-vs-spec miss,
+> and every tool failure is recorded in `final.caveats` and rendered as red
+> banners in the UI, and every run leaves an inspectable `manifest.json` +
+> `design.json` + `llm_provenance.jsonl`. A future interactive gate would
+> build on `pending_approval.json` in the run dir + a UI banner; revisit only
+> if the platform gains concurrent human operators.
+
 ------------------------------------------------------------------------
 
 # Phase 21 --- Experimental / Hardware Validation

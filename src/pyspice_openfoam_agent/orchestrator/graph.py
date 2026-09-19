@@ -101,7 +101,12 @@ def make_graph(config: AgentConfig, ctx: ToolContext, client=None, mock_response
                 return {"done": True}
             resp = mock_responses[step]
         else:
-            resp = _call_openrouter(config.model, state)
+            # Phase 18 (B3): provenance trail for every real design-decision
+            # call (mock replays are tests, not design decisions)
+            resp = _call_openrouter(
+                config.model, state,
+                provenance_path=Path(config.run_dir) / "llm_provenance.jsonl",
+            )
         calls = resp.get("tool_calls", [])
         return {"tool_calls": calls, "done": resp.get("done", False),
                 "final": resp.get("final")}
@@ -148,6 +153,52 @@ def make_graph(config: AgentConfig, ctx: ToolContext, client=None, mock_response
                 caveats.append(f"{entry.get('tool')}: {payload.get('caveat', '')}"[:250])
         if caveats:
             final.setdefault("caveats", caveats)
+        # Phase 4 (B5): persist the unified Design object — the single anchor
+        # for requirements/topology/parts the manifest is checked against.
+        if ctx is not None and ctx.design is not None:
+            try:
+                dp = ctx.design.save(Path(ctx.run_dir) / "design.json")
+                final["design_json"] = str(dp)
+            except Exception as e:
+                final.setdefault("caveats", []).append(f"design.json: {e}")
+        # Phase 22 (B2): unified output bundle — every orchestrated run leaves
+        # a schema-valid manifest.json, feasible or not (checkable-output
+        # contract). Caveats ride along so the file cannot bury a failure.
+        if ctx is not None:
+            try:
+                from pyspice_openfoam_agent.bundle.manifest import (
+                    build_manifest_from_artifacts,
+                    write_bundle,
+                )
+
+                th = ctx.artifacts.get("thermal") or {}
+                status = "feasible" if th.get("converged") else (
+                    "infeasible" if ctx.artifacts.get("components") else "error")
+                spec_dict = {
+                    "Vin": ctx.spec.Vin if ctx.spec else None,
+                    "Vout": ctx.spec.Vout if ctx.spec else None,
+                    "Iout": ctx.spec.Iout if ctx.spec else None,
+                    "fsw_khz": ctx.spec.fsw / 1e3 if ctx.spec else None,
+                    "Vripple": ctx.spec.Vripple if ctx.spec else None,
+                }
+                if ctx.design is not None:  # protection/range posture (B1/B5)
+                    r = ctx.design.requirements
+                    spec_dict.update(
+                        vin_min=r.vin_min, vin_max=r.vin_max,
+                        ocp_a=r.ocp_a, otp_c=r.otp_c, uvlo_v=r.uvlo_v,
+                        unresolved_safety_items=list(r.unresolved_safety_items),
+                        tj_max_c=r.tj_max_c,
+                        efficiency_target=r.efficiency_target,
+                    )
+                mp = write_bundle(
+                    build_manifest_from_artifacts(
+                        ctx.artifacts, spec_dict, status,
+                        notes=[f"caveat: {c}" for c in final.get("caveats", [])]),
+                    ctx.run_dir,
+                )
+                final["manifest"] = str(mp)
+            except Exception as e:
+                final.setdefault("caveats", []).append(f"manifest: {e}")
         # record design memory (Phase 11a). Only runs that produced a thermal
         # outcome are recorded: the old path appended every run unconditionally,
         # so the store accumulated `"outcome": {}` noise entries that
@@ -208,12 +259,21 @@ def _load_dotenv() -> None:
         break
 
 
-def _call_openrouter(model: str, state: AgentState) -> dict:
+def _call_openrouter(model: str, state: AgentState,
+                     provenance_path: Path | None = None,
+                     temperature: float = 0.0) -> dict:
     """One OpenRouter call (OpenAI-compatible, function calling).
 
     Model examples: deepseek/deepseek-chat-v3.1:free, deepseek/deepseek-r1,
     openai/gpt-4o-mini. API key from OPENROUTER_API_KEY (environment or
-    repo-root .env)."""
+    repo-root .env).
+
+    Phase 18 (B3) provenance: sampling settings are SENT (temperature=0
+    default) and, when `provenance_path` is given, every design-decision call
+    appends {ts, step, model, temperature, request, response} to that JSONL
+    file — the auditable trail the goals demand (prompt + model + response
+    per decision; files live in the run dir, not in graph state)."""
+    import time
     import urllib.request
 
     api_key = os.environ.get("OPENROUTER_API_KEY")
@@ -242,14 +302,13 @@ def _call_openrouter(model: str, state: AgentState) -> dict:
         messages.append({"role": "user",
                          "content": f"{m.get('tool', m['role'])}: {json.dumps(m.get('result', ''))[:2000]}"})
 
-    import urllib.request
-
     req = urllib.request.Request(
         "https://openrouter.ai/api/v1/chat/completions",
         data=json.dumps({
             "model": model,
             "messages": messages,
             "tools": tools,
+            "temperature": temperature,
         }).encode(),
         headers={
             "Authorization": f"Bearer {api_key}",
@@ -272,6 +331,24 @@ def _call_openrouter(model: str, state: AgentState) -> dict:
     if not out["tool_calls"] and msg.get("content"):
         out["done"] = True
         out["final"] = {"summary": msg["content"]}
+
+    if provenance_path is not None:
+        try:  # provenance is best-effort: never fail the LLM call on logging
+            import json as _json
+
+            record = {
+                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "step": state.get("step"),
+                "model": model,
+                "temperature": temperature,
+                "usage": body.get("usage"),
+                "request_messages": messages,
+                "response": out,
+            }
+            with open(provenance_path, "a", encoding="utf-8") as f:
+                f.write(_json.dumps(record, default=str) + "\n")
+        except Exception:
+            pass
     return out
 
 

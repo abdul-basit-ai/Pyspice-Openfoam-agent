@@ -68,24 +68,40 @@ def validate_manifest(d: dict) -> None:
 
 def build_manifest_from_artifacts(artifacts: dict, spec: dict, status: str,
                                   notes: list[str] | None = None) -> Manifest:
-    """Assemble a Manifest from a ToolContext.artifacts dict."""
+    """Assemble a Manifest from a ToolContext.artifacts dict.
+
+    `spec` may carry protection/safety context (ocp/otp/uvlo, unresolved
+    safety items, input range) in addition to the electrical spec — the Phase
+    12 output contract requires the safety posture to be inspectable.
+    Gate driver / controller ICs (Group A2) join the component list; the
+    control-loop, electro-thermal, step-test and sweep summaries ride in
+    `electrical` (schema-stable: it is a free-form dict)."""
     comps = artifacts.get("components", {})
     # infeasible/error runs may have no selection: manifest stays schema-valid
+    categories = ("mosfet", "inductor", "capacitor",
+                  "gate_driver", "controller", "diode")
     components = [
         ComponentRef(part_number=comps[k], category=k)
-        for k in ("mosfet", "inductor", "capacitor")
-        if k in comps
+        for k in categories
+        if comps.get(k)
     ]
+    electrical = dict(artifacts.get("spice", {}))
+    for extra in ("control_loop", "step_tests", "sweep", "electro_thermal"):
+        if artifacts.get(extra):
+            electrical[extra] = artifacts[extra]
+    thermal = dict(artifacts.get("thermal", {}))
+    # the per-check validation evidence (str->str) is exactly the convergence
+    # proof the Phase 13 contract wants in the bundle — keep it
     return Manifest(
         version=MANIFEST_VERSION,
         spec=spec,
         status=status,
         topology=artifacts.get("sizing", {}).get("topology"),
         components=components,
-        electrical=artifacts.get("spice", {}),
-        thermal=artifacts.get("thermal", {}),
+        electrical=electrical,
+        thermal=thermal,
         artifacts={"netlist": artifacts.get("netlist"),
-                   "case_dir": (artifacts.get("thermal") or {}).get("case_dir")},
+                   "case_dir": thermal.get("case_dir")},
         notes=notes or [],
     )
 

@@ -1,9 +1,9 @@
 # remain_plan.md — Phase Completion Status & Remaining Work
 
 Created: 2026-09-17 (after commits through `0af71c1`, post-AUDIT.md).
-**Updated 2026-09-19: Group A implemented** (see DONE log). Host suite now
-**179 passed / 6 env-gated skips** (was 151/7); `topology_smoke.py` ALL PASSED
-(buck / boost / buck_boost, host tier). In-container re-verification
+**Updated 2026-09-19: Groups A and B implemented** (see DONE log). Host suite
+now **191 passed / 6 env-gated skips** (was 151/7); `topology_smoke.py` ALL
+PASSED (buck / boost / buck_boost, host tier). In-container re-verification
 (dtest.sh + smoke `--thermal`) still pending — needs disk headroom in `runs/`.
 
 How to use: work top-to-bottom by priority group. Each item lists the gap, the
@@ -18,9 +18,9 @@ you go. Re-run the verification block at the bottom after every group.
 |---|---|---|---|
 | 0 | Environment & reproducibility | **~DONE** | LLM sampling settings not sent/logged (see 18); host venv was missing pymoo (now installed — keep pyproject install fresh) |
 | 1 | Component database | **PARTIAL → A1 data done** | gate drivers (3) / controllers (4) / diodes (5) shipped; Coss/Crss still unverified per part (see A1 notes); core-loss fields remain descope-by-documentation |
-| 2 | Spec parser & feasibility | **PARTIAL** | "36-60 V" ranges, MHz/Hz, V-unit ripple, efficiency phrasings still unsupported |
+| 2 | Spec parser & feasibility | **DONE (B1)** | input ranges (vin_min/max + worst-case endpoint + loud note), MHz/Hz, V-ripple, efficiency phrasings, UVLO/OCP/equal-V contradiction checks, tj default documented |
 | 3 | Topology + sizing | **DONE** | (multi-criteria scorer is advisory-only — acceptable, documented) |
-| 4 | Unified Design object | **PARTIAL** | Design still throwaway inside tools; not the persisted source of truth |
+| 4 | Unified Design object | **DONE (B5 incremental)** | Design created in size_converter, populated per stage, serialized to runs/<run>/design.json by finalize; regeneration-from-Design = future work |
 | 5 | Selection + schematic | **DONE (A2)** | gate-driver + controller IC selection wired into select_components with honest gap notes |
 | 6 | Control loop | **DONE (A3, open-loop scope)** | step tests shipped (`run_step_tests`); closed-loop SPICE step testing documented as follow-on |
 | 7 | Fast screening | **DONE** | (ripple prediction + banking + safety screens all in) |
@@ -34,11 +34,11 @@ you go. Re-run the verification block at the bottom after every group.
 | 15 | Parallel exploration | **MISSING** | Serial NSGA-II only; stub was removed |
 | 16 | Feedback / failure diagnosis | **DONE** | (auto-mitigation + caveats; HITL ask-before-change descoped) |
 | 17 | Interactive UI | **PARTIAL (+ step/sweep/pareto panels)** | component edit / probe / compare still missing (Group C3) |
-| 18 | AI orchestrator | **PARTIAL** | No per-call provenance record (temperature/prompt/response log) |
+| 18 | AI orchestrator | **DONE (B3)** | temperature=0 sent; every real call appends model/prompt/response to runs/<run>/llm_provenance.jsonl |
 | 19 | Memory / knowledge base | **DONE** | — |
-| 20 | HITL approval gates | **MISSING (by decision)** | Stubs removed; either implement minimal gates or record the descope in goals doc |
+| 20 | HITL approval gates | **DESCOPED (B4, documented)** | status note added to goals doc Phase 20: best-effort contract + caveats/banners/provenance cover the intent; revisit only for concurrent operators |
 | 21 | Hardware validation | **NOT STARTED** | Requires physical bench — long-term item |
-| 22 | Unified output package | **PARTIAL** | `bundle/manifest.py` exists but is never called by `graph.finalize` |
+| 22 | Unified output package | **DONE (B2)** | finalize writes schema-valid manifest.json (feasible/infeasible/error) incl. ICs, protection posture, verification summaries, caveats |
 | 23 | Regression suite | **PARTIAL (+ Group A tests)** | Named cases still missing: thermal failure, infeasible spec, component substitution |
 
 Doc fixes needed regardless: `CLAUDE.md` claims gate-driver/controller/diode
@@ -103,7 +103,46 @@ these exist**. Fix the doc (or make the code match it).
 
 ---
 
-## Group B — Contract / policy gaps
+## Group B — Contract / policy gaps — **IMPLEMENTED 2026-09-19**
+
+> What shipped (host: **191 passed / 6 CHT-gated skips**, smoke ALL PASSED;
+> new tests in `tests/unit/test_group_b.py`):
+>
+> - **B1 parser** (`sizing/spec_parser.py` + `Requirements.vin_min/vin_max`):
+>   input ranges in all three phrasings ("Vin = 36-60 V", "input 12-36 V",
+>   "12-36 V input", incl. "to") — both endpoints recorded, design point =
+>   worst-case voltage-stress endpoint (max) with a loud assumption + a
+>   missing-material entry; MHz/kHz/plain-Hz fsw; V-unit ripple (mV still
+>   wins); efficiency gap widened to 24 chars + number-first form ("95%
+>   efficiency"); "junction temperature" alias; NEW contradiction checks:
+>   empty range, Vin==Vout, UVLO > input max, OCP <= Iout; tj_max default
+>   now a documented assumption (150 °C = library max, zero margin).
+>   Schema-additive — old design.json files load unchanged.
+> - **B2 manifest** (`bundle/manifest.py` + `graph.finalize`): every
+>   orchestrated run writes `runs/<run>/manifest.json` — status
+>   feasible/infeasible/error, component list incl. gate driver/controller/
+>   diode, spec incl. protection posture + input range + unresolved safety
+>   items, control/step/sweep/electro-thermal summaries in `electrical`,
+>   CHT validation evidence in `thermal`, caveats in `notes`.
+> - **B3 provenance** (`graph._call_openrouter`): `temperature: 0` in the
+>   payload; every real (non-mock) call appends {ts, step, model,
+>   temperature, usage, request_messages, response} to
+>   `runs/<run>/llm_provenance.jsonl` (best-effort; mock replays are tests,
+>   not design decisions). CLAUDE.md claim now true.
+> - **B4 HITL descope (documented default)**: status note added to
+>   `updated_project_goals.md` Phase 20 — best-effort contract + caveats
+>   banners + manifest/provenance cover the gates' intent; the minimal
+>   interactive version (pending_approval.json + UI banner) is sketched
+>   there for a future revisit.
+> - **B5 Design persistence** (`ToolContext.design`): Design created in
+>   `tool_size_converter` (requirements + topology + rationale + sizing
+>   parameters), components populated in `select_components` (incl. ICs with
+>   datasheet URLs), netlist/thermal paths attached, serialized by
+>   `finalize` to `runs/<run>/design.json` (schema-version-checked reload
+>   pinned by test). Regeneration-from-Design = future work.
+
+### B1–B5 detail (original plan, kept for reference)
+
 
 ### B1. Phase 2 parser: units & ranges (never silently change the spec)
 - File: `sizing/spec_parser.py`.
@@ -249,19 +288,88 @@ status table, and re-date the baseline line at the top.
 
 ## DONE log (append as you complete)
 
-- **2026-09-19 — Group A complete.** New files: `library/data/{gate_drivers,
-  controllers,diodes}.yaml`, `spice/step_tests.py`, `spice/sweeps.py`,
-  `tests/unit/test_group_a.py`. Modified: `library/loader.py` (3 query
-  helpers), `netlist/selector.py` (IC selection), `spice/losses.py` (cap-ESR
-  loss + zero-gate-current guard in `crossover_time`), `optimization/pareto.py`
-  (shared clamped crossover, collection-phase re-screening + correct
-  v_block/conduction factor), `orchestrator/tools.py` (`run_step_tests`,
-  `run_sweeps`, `optimize_pareto` tools + dispatch + schemas; build_netlist
-  added to pareto-finalist AND mitigation child pipelines),
-  `orchestrator/graph.py` (SYSTEM_PROMPT lists the new tools), `ui/app.py`
-  (step/sweep/pareto panels). Host: **179 passed / 6 skips**, smoke ALL
-  PASSED. Still to do: in-container `dtest.sh` + smoke `--thermal` (finalist
-  CHT verification only runs there), then commit. `test_p1_new_categories_
-  optional` rewritten to a stripped-temp-dir basis (old form asserted the IC
-  files don't exist).
+- **2026-09-19 — Group B complete.** Parser units/ranges + Requirements
+  vin_min/vin_max; manifest wired into finalize (ICs, protection posture,
+  verification summaries, caveats); temperature=0 + llm_provenance.jsonl on
+  every real LLM call; HITL gates formally descoped in the goals doc (B4,
+  documented default); Design object created/populated per stage and
+  serialized to design.json. CLAUDE.md: Jinja2 claim corrected, temperature
+  claim now true, orchestrator entry lists the new tools + run outputs.
+  Host: **191 passed / 6 skips**, smoke ALL PASSED. Tests:
+  `tests/unit/test_group_b.py` (12).
+- **2026-09-19 — Group A complete.** Committed as `ed5bf2a`. New files:
+  `library/data/{gate_drivers,controllers,diodes}.yaml`, `spice/step_tests.py`,
+  `spice/sweeps.py`, `tests/unit/test_group_a.py`. Modified:
+  `library/loader.py` (3 query helpers), `netlist/selector.py` (IC selection),
+  `spice/losses.py` (cap-ESR loss + zero-gate-current guard in
+  `crossover_time`), `optimization/pareto.py` (shared clamped crossover,
+  collection-phase re-screening + correct v_block/conduction factor),
+  `orchestrator/tools.py` (`run_step_tests`, `run_sweeps`, `optimize_pareto`
+  tools + dispatch + schemas; build_netlist added to pareto-finalist AND
+  mitigation child pipelines), `orchestrator/graph.py` (SYSTEM_PROMPT lists
+  the new tools), `ui/app.py` (step/sweep/pareto panels). Host: **179 passed /
+  6 skips**, smoke ALL PASSED. `test_p1_new_categories_optional` rewritten to
+  a stripped-temp-dir basis (old form asserted the IC files don't exist).
 - (2026-09-17 snapshot taken at 158/158 in-container)
+
+---
+
+## FLAGS — per group (read before working a group)
+
+### Group A flags (implemented 2026-09-19, commit `ed5bf2a`)
+- ⚠️ **In-container verification still pending**: finalist CHT verification
+  (`optimize_pareto`) and the full `dtest.sh` + smoke `--thermal` only run
+  in the Docker container; host run can't exercise them. Needs `runs/` disk
+  headroom.
+- ⚠️ **Data integrity**: `SISS44DN10` (mosfets.yaml) could not be verified as
+  a real Vishay part — closest real part is SiSS4410DN (40 V, Coss 168 pF /
+  Crss 20 pF); its datasheet URL 404s. Audit and fix the whole record.
+- 📋 Coss/Crss still unset on all 12 MOSFETs — add only datasheet-verified
+  values (switching loss honestly omits the term while absent).
+- 📋 Inductor core-loss (Steinmetz) fields remain None — documented descope.
+- 📋 Step tests measure the OPEN-LOOP plant (rig has no feedback loop).
+  Closed-loop SPICE step testing (Type III network or Laplace behavioral
+  source in ngspice) is a possible follow-on; current loop validation is
+  margins-only on the averaged model.
+- 📋 Load-sweep `efficiency_waveform` is an upper bound (ideal switches carry
+  no modeled switching loss); `run_spice`'s loss-model efficiency stays the
+  design number. At light load it can clamp to 1.0.
+- 📋 Host venv had a stale install (pymoo declared but absent) — keep
+  `pip install -e .` fresh after pulling; container is canonical.
+
+### Group B flags (contract / policy gaps) — implemented 2026-09-19
+- 📋 B4 took the DOCUMENTED DEFAULT (descope) — if you want the interactive
+  approval gate later, the sketch is in the goals-doc Phase 20 status note
+  (pending_approval.json + UI banner + first-CHT/Tj-discrepancy gates).
+- ⚠️ Range specs design at the WORST-CASE-VOLTAGE endpoint only (max Vin).
+  For boost designs the harder corner is MIN Vin (higher duty/current) —
+  C2 (two-corner sizing + screening at both endpoints) is still open and
+  matters most for boost/buck_boost range specs.
+- 📋 design.json population is best-effort per stage; a run that errors mid-
+  pipeline still serializes whatever it had (netlist_path/components may be
+  None) — intentional (checkable-output contract), not a bug.
+- 📋 llm_provenance.jsonl only logs REAL OpenRouter calls (mock test replays
+  are excluded by design); a live run without OPENROUTER_API_KEY fails before
+  any record is written — the error itself lands in RunState, not provenance.
+- 📋 Manifest `status` semantics: converged CHT = "feasible" even with
+  caveats (caveats ride in notes); no-thermal-but-parts = "infeasible";
+  pre-sizing error = "error".
+
+### Group C flags (polish)
+- ⚠️ `ui/app.py` Results tab still reads `crossover_kHz` while artifacts
+  store `crossover_hz` (crossover always renders N/A) — one-line fix, do with
+  C1.
+- 📋 C1 (fidelity param on run_thermal) is nearly free — presets already
+  exist in the mesh generator.
+- 📋 CLAUDE.md drift: Jinja2-templates claim and "temperature logged" claim
+  are still false after B3 unless B3 lands; IC-library claim became TRUE in
+  Group A. Refresh baselines whenever the suite count changes.
+
+### Group D flags (long-term / descoped)
+- 📋 P15 parallel: revisit only if sweeps + Pareto get composed into a batch
+  workload; natural design is a bounded `concurrent.futures` pool over
+  candidate evaluation.
+- 📋 P21 hardware: nothing to build until a bench exists; B2's manifest is
+  the only worthwhile prep.
+- 📌 Transient thermal is out of scope per the Phase 12 scope decision — do
+  not let any later phase assume transient thermal data exists.

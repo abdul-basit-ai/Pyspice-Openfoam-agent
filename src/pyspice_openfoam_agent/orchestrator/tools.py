@@ -219,6 +219,11 @@ class ToolContext:
     # Phase 5 LossBreakdown cached by run_spice so run_thermal does not
     # re-simulate (in-memory only — never serialized into artifacts)
     losses: object | None = None
+    # Phase 4 unified Design object — created by size_converter, populated by
+    # each stage, serialized to runs/<run>/design.json by graph.finalize
+    # (B5 incremental slice: single anchor for requirements/topology/parts;
+    # regeneration-from-Design remains future work)
+    design: object | None = None
     # monotonic counter for fresh thermal_case_<n>/ dirs (never overwrite)
     thermal_case_counter: int = 0
     # accumulated artifacts for the Phase 12 bundle
@@ -424,6 +429,31 @@ def tool_size_converter(ctx: ToolContext, Vin: float, Vout: float, Iout: float,
         return {"error": f"spec infeasible: {e}"}
     ctx.spec = spec
     ctx.sizing = result
+    # Phase 4 (B5): create the unified Design once and populate as the run
+    # progresses — the single anchor the manifest and design.json serialize.
+    from pyspice_openfoam_agent.design.object import (
+        Design,
+        DesignParameters,
+        Requirements,
+    )
+
+    d = Design()
+    d.requirements = Requirements(
+        Vin=spec.Vin, Vout=spec.Vout, Iout=spec.Iout,
+        fsw_khz=spec.fsw / 1e3, ripple_v=spec.Vripple,
+        ripple_ratio=spec.ripple_ratio,
+    )
+    d.topology.name = result.topology
+    d.topology.rationale = next(
+        (n for n in result.notes if "ambiguous" in n.lower()),
+        f"voltage ratio Vout/Vin={spec.Vout / spec.Vin:.3f} "
+        f"-> {result.topology} (engine classification; see sizing notes)")
+    d.parameters = DesignParameters(
+        duty_cycle=result.D, L_min_h=result.L_min, C_min_f=result.C_min,
+        di_pp_a=result.di_pp, i_l_avg_a=result.I_L_avg,
+        i_peak_a=result.I_peak, i_rms_sw_a=result.I_rms_sw,
+    )
+    ctx.design = d
     ctx.artifacts["sizing"] = {
         "topology": result.topology, "D": result.D,
         "L_min_H": result.L_min, "C_min_F": result.C_min,
@@ -459,6 +489,20 @@ def tool_select_components(ctx: ToolContext) -> dict:
     except Exception as e:
         return {"error": f"selection failed: {e}"}
     ctx.selected = sel
+    # Phase 4 (B5): record the selection on the Design object
+    if ctx.design is not None:
+        from pyspice_openfoam_agent.design.object import ComponentRef
+
+        def _ref(cat, part):
+            return ComponentRef(
+                category=cat, part_number=part.part_number,
+                datasheet_url=str(part.datasheet.url)) if part else None
+
+        ctx.design.components.mosfet = _ref("mosfet", sel.mosfet)
+        ctx.design.components.inductor = _ref("inductor", sel.inductor)
+        ctx.design.components.capacitor = _ref("capacitor", sel.capacitor)
+        ctx.design.components.gate_driver = _ref("gate_driver", sel.gate_driver)
+        ctx.design.components.controller = _ref("controller", sel.controller)
     ctx.artifacts["components"] = {
         "mosfet": sel.mosfet.part_number, "inductor": sel.inductor.part_number,
         "capacitor": sel.capacitor.part_number,
@@ -496,6 +540,8 @@ def tool_build_netlist(ctx: ToolContext, out_path: str | None = None) -> dict:
         return {"error": f"netlist build/lint failed: {e}"}
     ctx.netlist_path = written
     ctx.artifacts["netlist"] = str(written)
+    if ctx.design is not None:
+        ctx.design.netlist_path = str(written)  # Phase 4 (B5)
     return {"netlist": str(written), "lint_ok": lint.ok if lint else None,
             "connectivity_valid": True}
 
@@ -776,9 +822,12 @@ def tool_run_thermal(ctx: ToolContext, v_in_m_s: float | None = None) -> dict:
         "v_in_m_s": v_in, "tj_per_device_C": tj_c,
         "converged": bool(result.converged and vv.valid),
         "validation": vv.checks,
+        "case_dir": str(cp.root),
         # K — the baseline Tj the Phase 10 mitigation loop gates on
         "tj_max_k": result.tj_max,
     }
+    if ctx.design is not None:  # Phase 4 (B5)
+        ctx.design.thermal_case_dir = str(cp.root)
     if not vv.valid:
         return {"error": "CHT result failed validation: " + "; ".join(vv.reasons),
                 "converged": False, "validation": vv.checks,
