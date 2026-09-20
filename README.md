@@ -1,10 +1,46 @@
-# PySpice–OpenFOAM Agent
+# PySpice–OpenFOAM Agent ⚡
 
-AI-assisted DC-DC converter design platform: a deterministic physics and
-control layer (sizing, component selection, SPICE verification, loss
-extraction, control-loop design, thermal verification) wrapped by an LLM
-orchestrator (LangGraph ReAct agent) that only ever *interprets* results —
-never computes physics. Optional Streamlit UI.
+**An AI-assisted electronic engineering environment for DC-DC converter design.**
+Give it a plain-English spec — *"12 V to 5 V at 3 A, 500 kHz, ripple under 50 mV"* —
+and it synthesizes the converter, selects real components, simulates the power
+stage in SPICE, designs the feedback compensator, solves the 3D heat flow in
+OpenFOAM, and hands you a verified design with an explainable audit trail.
+
+The core principle: **every physics number comes from deterministic,
+unit-tested engineering code** (analytical sizing, ngspice, python-control,
+OpenFOAM, NSGA-II). The LLM (DeepSeek via OpenRouter, in a LangGraph ReAct
+loop) only ever *orchestrates and interprets* — it picks the next tool,
+reads the structured result, and explains the trade-offs. It cannot compute
+a margin, and it cannot invent a part number: component selection is a
+database query, and the schema rejects anything not in the catalog.
+
+![Architecture](diagram.png)
+
+*(The diagram above is rendered from [`docs/architecture.mmd`](docs/architecture.mmd) —
+edit that file and re-export to update it.)*
+
+---
+
+## What it does, end to end
+
+| Stage | What happens | Tool |
+|---|---|---|
+| **Understand** | Parses the NL spec (incl. input ranges like "36–60 V", MHz/Hz units), flags missing safety settings (OCP/OTP/UVLO) as questions, rejects contradictory specs | `size_converter` |
+| **Remember** | Looks up past designs with the same signature; the best-known config seeds the new run | `read_design_memory` |
+| **Size** | Analytical duty cycle + minimum L/C, two-corner sizing for input ranges (worst of each stress) | `size_converter` |
+| **Select** | Real MOSFET / inductor / capacitor (+ gate-driver & controller ICs) from the curated YAML library, with voltage/current/thermal margins; MLCC banking when no single cap meets a tight ripple budget | `select_components` |
+| **Screen** | Closed-form feasibility gate — doomed designs are rejected *before* expensive simulation | *inside selection* |
+| **Synthesize** | Emits the SPICE netlist (buck / boost / 4-switch non-inverting buck-boost), lints it with ngspice, validates connectivity | `build_netlist` |
+| **Verify electrically** | Transient simulation with the duty servo-tracked to the design operating point; measures ripple, efficiency, transient health; extracts per-device losses (conduction, switching, gate, DCR, cap-ESR) | `run_spice` |
+| **Verify control** | Type III compensator designed phase-targeted with PWM-delay-aware margins (PM ≥ 45°, GM ≥ 6 dB) computed by python-control — never LLM-judged; load/input step tests measure the plant response | `analyze_control_loop`, `run_step_tests` |
+| **Verify thermally** | Reduced-order electro-thermal fixed point (Rds_on tempco) for every design; full 3D conjugate-heat-transfer solve in OpenFOAM v2406 on a JEDEC JESD51-3 board for the operating point, with log-based result validation | `electro_thermal_converge`, `run_thermal` |
+| **Recover** | If Tj violates the limit: cost-ordered mitigation (airflow → component reselection → fsw) re-entering the real pipeline, best-effort verdict with honest caveats | `mitigate_thermal` |
+| **Explore** | NSGA-II Pareto over (MOSFET, fsw, L, airflow) — reduced-order tier for the search, full CHT verification of the finalists in parallel worker processes | `optimize_pareto` |
+| **Deliver** | Every run leaves `manifest.json` (schema-checked bundle), `design.json` (canonical design object) and `llm_provenance.jsonl` (model + temperature + prompt + response of every LLM call) | *finalize* |
+
+Every tool failure or best-effort miss surfaces as a **red caveat banner** in
+the UI and a note in the manifest — a summary can never silently bury a
+failed check.
 
 ## Supported topologies
 
@@ -12,19 +48,7 @@ never computes physics. Optional Streamlit UI.
 |--------------|--------------------------------------------|
 | `buck`       | synchronous buck (2 switches)              |
 | `boost`      | synchronous boost (2 switches)             |
-| `buck_boost` | 4-switch non-inverting buck-boost, +|Vout| |
-
-## Pipeline
-
-```
-NL spec parse → memory lookup → sizing (analytical L/C) → component selection
-  → screening gate → netlist synthesis + ngspice lint + connectivity check
-  → ngspice transient (duty-servoed to the design operating point)
-  → per-device loss extraction → Type III control loop w/ delay-aware margins
-  → reduced-order electro-thermal convergence
-  → (container) OpenFOAM v2406 CHT solve + validation + mitigation loop
-  → (optional) NSGA-II Pareto optimization
-```
+| `buck_boost` | 4-switch non-inverting buck-boost, +\|Vout\| |
 
 ## Quickstart
 
@@ -43,18 +67,48 @@ python scripts/topology_smoke.py --only buck # single topology
 python scripts/topology_smoke.py --thermal   # + full CHT (container only)
 ```
 
-Tests:
+Tests (CHT tests skip automatically off-container):
 
 ```bash
-.venv/Scripts/python -m pytest tests/        # CHT tests skip off-container
+.venv/Scripts/python -m pytest tests/
 ```
 
 Agent + UI:
 
 ```bash
 streamlit run ui/app.py                      # scripted mode needs no LLM key
-# live agent mode: set OPENROUTER_API_KEY in the environment / .env
+# live agent mode: copy .env.example -> .env and set OPENROUTER_API_KEY
 ```
+
+Current verification baseline: **210 passed / 6 env-gated skips** on the
+Windows host; all three topologies pass the smoke end to end. The canonical
+environment (including the CHT tier) is the Docker image:
+
+```bash
+docker compose -f docker/docker-compose.yml build
+bash scripts/dtest.sh                        # full suite in-container
+```
+
+## Repository layout
+
+- `src/pyspice_openfoam_agent/sizing/` — spec parsing, analytical sizing, screening, advisory topology scorer
+- `src/pyspice_openfoam_agent/library/` — component database (MOSFETs, inductors, capacitors, gate drivers, controllers, diodes) + Pydantic schema + queries
+- `src/pyspice_openfoam_agent/design/` — the canonical, schema-versioned Design object
+- `src/pyspice_openfoam_agent/netlist/` — netlist synthesis, margin-based selection, validation, ngspice lint
+- `src/pyspice_openfoam_agent/spice/` — ngspice transient runner, steady-state detector, loss extraction, step tests, sweeps
+- `src/pyspice_openfoam_agent/control_loop/` — Type III compensator + delay-aware margin analysis
+- `src/pyspice_openfoam_agent/thermal/` — JEDEC board model, OpenFOAM case generation, CHT solver, validation, mitigation, electro-thermal loop
+- `src/pyspice_openfoam_agent/optimization/` — NSGA-II Pareto (two-tier fidelity)
+- `src/pyspice_openfoam_agent/orchestrator/` — LangGraph agent, tool layer, design memory, bounded process parallelism
+- `ui/` — Streamlit app; `scripts/` — smoke + dev scripts; `docs/` — diagram source
+
+## Documentation
+
+- [`CLAUDE.md`](CLAUDE.md) — agent-facing guide: architecture, contracts, engineering policies
+- [`updated_project_goals.md`](updated_project_goals.md) — the phase plan (0–23) with implementation status notes
+- [`AUDIT.md`](AUDIT.md) — the full audit: every finding → fix → verification
+- [`remain_plan.md`](remain_plan.md) — phase completion status and remaining work
+- [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) — directory → phase map
 
 ## Environment notes
 
@@ -71,23 +125,13 @@ streamlit run ui/app.py                      # scripted mode needs no LLM key
    process PATH automatically before the first load.
 3. PySpice 1.5 crashes with `cffi.CDefError` if a SECOND NgSpiceShared
    instance is created in one process — `spice/runner.py` uses a single
-   process-wide instance (with `remcirc` between runs) to avoid it.
+   process-wide instance (with `remcirc` between runs) to avoid it, and
+   candidate parallelism therefore uses **processes, not threads**.
 
 ### OpenFOAM v2406 (CHT thermal tier, Linux/container)
 
-The full conjugate-heat-transfer tier (`run_thermal`, `mitigate_thermal`)
-requires `chtMultiRegionSimpleFoam` + `blockMesh` — run inside the provided
-Docker image (`docker/`, see `scripts/dtest.sh`). Off-container these tools
-return structured errors and the CHT tests skip.
-
-## Layout
-
-- `src/pyspice_openfoam_agent/sizing/` — spec parsing, analytical sizing, screening, topology choice
-- `src/pyspice_openfoam_agent/library/` — component database (YAML) + Pydantic schema
-- `src/pyspice_openfoam_agent/netlist/` — netlist synthesis, part selection, validation, ngspice lint
-- `src/pyspice_openfoam_agent/spice/` — ngspice transient runner, steady-state detector, loss extraction
-- `src/pyspice_openfoam_agent/control_loop/` — Type III compensator + delay-aware margin analysis
-- `src/pyspice_openfoam_agent/thermal/` — JEDEC board model, OpenFOAM case generation, CHT solver, validation, mitigation, reduced-order electro-thermal loop
-- `src/pyspice_openfoam_agent/optimization/` — NSGA-II Pareto (two-tier fidelity)
-- `src/pyspice_openfoam_agent/orchestrator/` — LangGraph agent, tool layer, design memory
-- `ui/` — Streamlit app; `scripts/` — smoke + dev scripts
+The full conjugate-heat-transfer tier (`run_thermal`, `mitigate_thermal`,
+Pareto finalist verification) requires `chtMultiRegionSimpleFoam` +
+`blockMesh` — run inside the provided Docker image (`docker/`, see
+`scripts/dtest.sh`). Off-container these tools return structured errors and
+the CHT tests skip.

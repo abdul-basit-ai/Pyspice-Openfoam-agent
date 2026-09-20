@@ -1,0 +1,78 @@
+%% Corrected architecture source for diagram.png (review 2026-09-20).
+%% Render at https://mermaid.live and export PNG to replace diagram.png.
+%% Fixes vs the previous PNG:
+%%   1. "Type II control synthesis" -> Type III (design.py is Type III)
+%%   2. topology_smoke.py drives the TOOL LAYER directly (no agent graph)
+%%   3. topology_select.py is ADVISORY; engine.py classifies the topology
+%%   4. dataflow order: library -> selection -> screening (was screening -> library)
+%%   5. added: IC library categories, step tests/sweeps, parallel finalist
+%%      verification, design.json + provenance outputs
+flowchart TD
+    subgraph ORCH["Orchestration"]
+        UI["Streamlit UI — optional frontend<br/>[ui/app.py]"]
+        SMOKE["Topology smoke — acceptance runner<br/>[scripts/topology_smoke.py]"]
+        AGENT["Agent graph — LangGraph ReAct orchestrator<br/>[graph.py]"]
+        MEM["Design memory — persistent context<br/>[memory/design_memory.py]"]
+        STORE[("Memory store — JSON persistence<br/>[design_memory.json]")]
+        TOOLS["Tool layer — orchestration tools<br/>[tools.py]"]
+    end
+
+    UI -->|"scripted or live request"| AGENT
+    AGENT -->|"staged tool calls"| TOOLS
+    AGENT -->|"loads and updates context"| MEM
+    MEM -->|"persists"| STORE
+    SMOKE -->|"drives the tool layer directly (no LLM)"| TOOLS
+
+    TOOLS -->|"requirements"| PARSE
+
+    subgraph DEF["Design Definition"]
+        PARSE["Specification parser<br/>[sizing/spec_parser.py]"]
+        DESIGN["Design object — canonical domain model<br/>[design/object.py]"]
+        SIZING["Analytical sizing engine<br/>[sizing/engine.py]"]
+        ADV["Topology scorer — advisory only<br/>[sizing/topology_select.py]"]
+        LIB[("Part library — MOSFETs, inductors, caps,<br/>gate drivers, controllers, diodes<br/>[library/loader.py]")]
+        SCREEN["Feasibility screening gate<br/>[sizing/screening.py]"]
+    end
+
+    PARSE -->|"structured spec"| DESIGN
+    DESIGN -->|"design constraints"| SIZING
+    SIZING -->|"classified topology + sized candidate"| LIB
+    ADV -.->|"advisory note"| SIZING
+    LIB -->|"selected components"| SCREEN
+    SCREEN -->|"feasible, margin-checked design"| NET
+
+    subgraph ELEC["Electrical Verification"]
+        NET["Netlist build + ngspice lint + connectivity check<br/>[netlist/builder.py, validate.py]"]
+        SPICE["Duty-servoed SPICE transient<br/>[spice/runner.py]"]
+        LOSS["Steady state + per-device losses<br/>[spice/steady_state.py, losses.py]"]
+        CTRL["Type III control synthesis + delay-aware margins<br/>[control_loop/design.py]"]
+        TESTS["Step tests + load / Vin sweeps<br/>[spice/step_tests.py, sweeps.py]"]
+    end
+
+    SPICE --> LOSS
+    NET --> SPICE
+    LOSS --> CTRL
+    SPICE -.-> TESTS
+
+    LOSS -->|"device losses"| ET
+
+    subgraph THERM["Thermal Verification"]
+        ET["Electro-thermal fixed point — reduced order<br/>[thermal/electro_thermal.py]"]
+        CHT["OpenFOAM v2406 CHT — full fidelity (container)<br/>[thermal/case_writer.py, solver.py]"]
+        MIT["Thermal mitigation — airflow / reselect / fsw<br/>[thermal/mitigation.py]"]
+    end
+
+    ET -->|"optional full CHT"| CHT
+    ET -->|"thermal violations"| MIT
+    CHT -->|"thermal violations"| MIT
+
+    ET -->|"finalized design"| MAN
+    CTRL -->|"verification results"| PARETO
+    SPICE -.->|"candidate exploration"| PARETO
+
+    subgraph DEL["Optimization & Delivery"]
+        MAN["Design bundle — manifest.json + design.json<br/>+ llm_provenance.jsonl<br/>[bundle/manifest.py]"]
+        PARETO["NSGA-II two-tier optimizer<br/>+ parallel finalist verification<br/>[optimization/pareto.py, orchestrator/parallel.py]"]
+    end
+
+    PARETO -.->|"finalists re-enter the real pipeline"| TOOLS
