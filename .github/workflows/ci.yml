@@ -15,8 +15,14 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - name: Install ngspice (SPICE stages; CHT tests skip off-container)
-        run: sudo apt-get update && sudo apt-get install -y ngspice
+      - name: Install ngspice + shared lib + Mesa GL (SPICE stages + pyvista
+          headless renders; CHT tests skip off-container)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ngspice libngspice0 libngspice0-dev \
+            libgl1 libglx-mesa0 libosmesa6
+          # PySpice discovers the unversioned .so; provide it explicitly
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libngspice.so.0 /usr/lib/libngspice.so
       - name: Install package
         run: pip install -e ".[dev]"
       - name: Run test suite
