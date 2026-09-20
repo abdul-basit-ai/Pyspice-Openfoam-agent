@@ -159,9 +159,16 @@ def test_checkpoint_losses_match_hand_calculations(buck_run) -> None:
     assert d.hs_switching == pytest.approx(
         (e_sw_hs + e_oss) * PUBLISHED["fsw"], rel=0.2)
     # LS sync rect: cross-conduction ~0; loss = body-diode dead-time + Qrr.
-    # Qrr defaults 0 -> only the dead-time term remains, far below the HS term.
+    # The library now carries REAL Qrr values (TI datasheets), so the Qrr term
+    # is active and can be hand-checked exactly:
+    from pyspice_openfoam_agent.netlist.builder import dead_time_for
+
+    t_dead = dead_time_for(sel.mosfet)
+    qrr = sel.mosfet.Qrr or 0.0
+    expected_ls = (sel.mosfet.V_F * lb.i_l_avg / 2 * 3 * t_dead
+                   + qrr * PUBLISHED["Vin"]) * PUBLISHED["fsw"]
     assert d.ls_switching != pytest.approx((e_sw_hs + e_oss) * PUBLISHED["fsw"], rel=0.2)
-    assert d.ls_switching < d.hs_switching * 0.5  # sync rect loses far less than HS
+    assert d.ls_switching == pytest.approx(expected_ls, rel=0.3)
 
     # gate drive: 2 * Qg * Vdrv * fsw
     assert d.gate_drive == pytest.approx(2 * sel.mosfet.Qg * 5.0 * PUBLISHED["fsw"], rel=1e-6)

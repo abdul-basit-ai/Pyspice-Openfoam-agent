@@ -1,0 +1,25 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  host-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install ngspice (SPICE stages; CHT tests skip off-container)
+        run: sudo apt-get update && sudo apt-get install -y ngspice
+      - name: Install package
+        run: pip install -e ".[dev]"
+      - name: Run test suite
+        run: python -m pytest tests/ -q
+      - name: Topology smoke (no CHT)
+        run: python scripts/topology_smoke.py

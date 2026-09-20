@@ -3,7 +3,7 @@
 The plan's checkpoint: query the library for "MOSFETs rated >= 40V,
 Rds_on < 5 mOhm" and confirm correct filtering against a hand-checked answer.
 Hand-checked answer (from the YAML, verified against datasheets at entry):
-  BSC014N04LS (40V, 1.4 mOhm) and BSC030N04LS (40V, 3.0 mOhm) — exactly 2.
+  CSD18540Q5B (60V, 2.2 mOhm) and CSD18502Q5B (40V, 2.3 mOhm) — exactly 2.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ def lib() -> Library:
 
 def test_loads_with_expected_counts(lib: Library) -> None:
     counts = lib.counts()
-    assert counts["mosfets"] >= 10
+    assert counts["mosfets"] >= 6
     assert counts["inductors"] >= 10
     assert counts["capacitors"] >= 10
 
@@ -56,9 +56,10 @@ def test_mosfets_silicon_class_fields(lib: Library) -> None:
 def test_checkpoint_query_mosfets_40v_5mohm(lib: Library) -> None:
     hits = query_mosfets(lib, Vds_min=40.0, Rds_on_max=5e-3)
     got = [m.part_number for m in hits]
-    # Hand-checked: only these two parts satisfy both constraints.
-    assert set(got) == {"BSC014N04LS", "BSC030N04LS"}
-    assert [m.part_number for m in hits] == ["BSC014N04LS", "BSC030N04LS"]  # sorted by Rds_on
+    # Hand-checked (all-TI catalog): CSD18540Q5B (60V, 2.2 mOhm) and
+    # CSD18502Q5B (40V, 2.3 mOhm) are the only parts clearing both.
+    assert set(got) == {"CSD18540Q5B", "CSD18502Q5B"}
+    assert [m.part_number for m in hits] == ["CSD18540Q5B", "CSD18502Q5B"]  # sorted by Rds_on
 
 
 def test_query_empty_on_impossible_constraints(lib: Library) -> None:
@@ -66,9 +67,9 @@ def test_query_empty_on_impossible_constraints(lib: Library) -> None:
 
 
 def test_query_mosfets_by_package(lib: Library) -> None:
-    hits = query_mosfets(lib, package="PG-TDSON-8")
+    hits = query_mosfets(lib, package="SON5x6")
     assert len(hits) >= 4
-    assert all(m.package == "PG-TDSON-8" for m in hits)
+    assert all(m.package == "SON5x6" for m in hits)
 
 
 # ---------- schema sanity validators fire ----------

@@ -196,7 +196,7 @@ def test_electro_thermal_stable_design_converges_quickly(lib):
     from pyspice_openfoam_agent.design.object import Requirements
     from pyspice_openfoam_agent.thermal.electro_thermal import converge_for_design
 
-    mosfet = lib.mosfets["BSC014N04LS"]
+    mosfet = lib.mosfets["CSD16415Q5"]
     req = Requirements(Vin=12, Vout=5, Iout=3, fsw_khz=500, ripple_v=0.05)
     r = converge_for_design(req, mosfet)
     assert r.converged, r.tj_history
@@ -269,7 +269,7 @@ def test_validate_netlist_title_and_continuations(tmp_path):
 def test_reduced_order_losses_vblock(lib):
     from pyspice_openfoam_agent.optimization.pareto import reduced_order_losses
 
-    mosfet = lib.mosfets["BSC014N04LS"]
+    mosfet = lib.mosfets["CSD16415Q5"]
     lo, _ = reduced_order_losses(mosfet, 2.0, 500e3, v_block=12.0)
     hi, _ = reduced_order_losses(mosfet, 2.0, 500e3, v_block=48.0)
     assert hi > lo  # 48 V design must not be ranked on 12 V switching loss

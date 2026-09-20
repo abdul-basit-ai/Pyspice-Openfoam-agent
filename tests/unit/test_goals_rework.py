@@ -33,7 +33,7 @@ def lib():
 
 
 def test_p1_mosfet_tempco_method(lib):
-    m = lib.mosfets["BSC014N04LS"]
+    m = lib.mosfets["CSD16415Q5"]
     # default tempco 6000 ppm/K: at 125 degC (100 K above 25), factor 1.6
     assert m.rds_on_at(125.0) == pytest.approx(m.Rds_on * 1.6)
     assert m.rds_on_at(25.0) == m.Rds_on
@@ -67,7 +67,7 @@ def test_p1_new_categories_optional(tmp_path):
 
 
 def test_p1_schema_new_fields(lib):
-    m = lib.mosfets["BSC014N04LS"]
+    m = lib.mosfets["CSD16415Q5"]
     assert hasattr(m, "Coss") and hasattr(m, "Crss")
     assert m.Rds_on_tempco_ppm > 0
     ind = lib.inductors["XAL1010-472ME"]
@@ -264,7 +264,7 @@ def test_p6_rejects_undersized_mosfet(lib):
     sizing = size(spec)
     sel = select_components(lib, spec, sizing)
     # force a 25V MOSFET into a 60V design: screening must reject
-    v = screen(60.0, 5.0, 5.0, 500e3, sizing, lib.mosfets["SISS44DN10"],
+    v = screen(60.0, 5.0, 5.0, 500e3, sizing, lib.mosfets["CSD16415Q5"],
                sel.inductor, sel.capacitor)
     assert v.rejected
     assert any("Vds_max" in r for r in v.reasons)
@@ -277,7 +277,7 @@ def test_p10_presets_change_resolution(lib):
     from pyspice_openfoam_agent.thermal.board import build_board_geometry
     from pyspice_openfoam_agent.thermal.mesh_generator import plan_mesh
 
-    geo = build_board_geometry(lib.mosfets["BSC014N04LS"])
+    geo = build_board_geometry(lib.mosfets["CSD16415Q5"])
     fast = plan_mesh(geo, fidelity="fast")
     high = plan_mesh(geo, fidelity="high")
     assert high.n_cells > fast.n_cells * 2  # high must be substantially finer
@@ -287,7 +287,7 @@ def test_p10_unknown_preset_rejected(lib):
     from pyspice_openfoam_agent.thermal.board import build_board_geometry
     from pyspice_openfoam_agent.thermal.mesh_generator import plan_mesh, MeshPlanError
 
-    geo = build_board_geometry(lib.mosfets["BSC014N04LS"])
+    geo = build_board_geometry(lib.mosfets["CSD16415Q5"])
     with pytest.raises(MeshPlanError, match="unknown fidelity"):
         plan_mesh(geo, fidelity="ultra")
 

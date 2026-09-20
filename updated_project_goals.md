@@ -635,6 +635,18 @@ Produce a compensator design with computed phase/gain margins meeting the
 limits above, plus load-step and input-step SPICE runs showing acceptable
 transient response.
 
+> **IMPLEMENTATION STATUS (2026-09-20):** Margins, load-step and input-step
+> are implemented (deterministic python-control analysis; open-loop plant
+> step tests via `run_step_tests`). A CLOSED-LOOP SPICE rig (behavioral
+> Type III + PWM comparator in the netlist) was explored and is blocked by
+> the shared-library ngspice path: `ngSpice_Circ` parameter-substitutes
+> `{...}` (breaking LAPLACE/B-source expressions that batch-mode
+> `ngspice -b` accepts), and LAPLACE transient evaluation via the shared
+> library does not complete in practical time. A physical R/C Type III
+> network with an E-gain op-amp remains a possible follow-on; until then
+> the compensated loop is validated by the margin analysis only, and the
+> open-loop step tests document the plant response honestly.
+
 ------------------------------------------------------------------------
 
 # Phase 7 --- Fast Electrical Screening

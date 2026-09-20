@@ -70,45 +70,6 @@ parts:
       url: "https://www.coilcraft.com/en-us/pcms/xal/xal-1510/"
       page: 1
       note: "Coilcraft XAL1510-682ME, 6.8 uH 20%"
-  - part_number: IHLP4040CZER1R0M01
-    L: 1.0e-6
-    tol_percent: 20.0
-    DCR: 0.0069
-    ESR: 0.0
-    Isat: 34.0
-    Irms: 16.0
-    f_self_res: 55.0e6
-    package: "4040"
-    datasheet:
-      url: "https://www.vishay.com/docs/34170/ihlp4040cz01.pdf"
-      page: 1
-      note: "Vishay IHLP-4040CZ-01, 1.0 uH 20%"
-  - part_number: IHLP5050CZER2R2M01
-    L: 2.2e-6
-    tol_percent: 20.0
-    DCR: 0.0135
-    ESR: 0.0
-    Isat: 28.0
-    Irms: 13.0
-    f_self_res: 33.0e6
-    package: "5050"
-    datasheet:
-      url: "https://www.vishay.com/docs/34250/ihlp5050cz01.pdf"
-      page: 1
-      note: "Vishay IHLP-5050CZ-01, 2.2 uH 20%"
-  - part_number: IHLP6767GZER4R7M01
-    L: 4.7e-6
-    tol_percent: 20.0
-    DCR: 0.0173
-    ESR: 0.0
-    Isat: 40.0
-    Irms: 20.0
-    f_self_res: 25.0e6
-    package: "6767"
-    datasheet:
-      url: "https://www.vishay.com/docs/34450/ihlp6767gz01.pdf"
-      page: 1
-      note: "Vishay IHLP-6767GZ-01, 4.7 uH 20%"
   - part_number: SRP7028A-1R0M
     L: 1.0e-6
     tol_percent: 20.0

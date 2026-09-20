@@ -156,7 +156,7 @@ def test_electrothermal_converge_for_design():
     from pyspice_openfoam_agent.thermal.electro_thermal import converge_for_design
 
     lib = load_library()
-    m = lib.mosfets["BSC014N04LS"]  # low-Rds_on, real thermal data
+    m = lib.mosfets["CSD16415Q5"]  # low-Rds_on, real thermal data
     req = Requirements(Vin=12, Vout=5, Iout=5, fsw_khz=500, ripple_v=0.05)
     r = converge_for_design(req, m, v_in_m_s=1.5)
     assert r.converged

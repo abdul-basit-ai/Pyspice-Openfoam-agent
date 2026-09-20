@@ -127,7 +127,7 @@ def test_graph_mock_run_completes(run_dir) -> None:
     assert result["final"]["summary"] == "sized and selected"
     # artifacts accumulated through the real dispatch
     assert result["final"]["artifacts"]["sizing"]["topology"] == "buck"
-    assert result["final"]["artifacts"]["components"]["mosfet"] == "BSC014N04LS"
+    assert result["final"]["artifacts"]["components"]["mosfet"] == "CSD16415Q5"
     # transcript has one tool observation per call
     tool_msgs = [m for m in result["transcript"] if m["role"] == "tool"]
     assert len(tool_msgs) == 2

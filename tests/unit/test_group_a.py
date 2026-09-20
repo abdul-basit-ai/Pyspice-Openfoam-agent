@@ -41,7 +41,7 @@ def test_library_counts_include_ic_categories(lib):
     counts = lib.counts()
     assert counts["gate_drivers"] >= 3
     assert counts["controllers"] >= 4
-    assert counts["diodes"] >= 5
+    assert counts["diodes"] >= 3
 
 
 def test_gate_driver_queries(lib):
@@ -253,7 +253,7 @@ def test_new_tools_in_schema_and_dispatch():
 def test_crossover_time_zero_gate_current_guard():
     """V_plateau at the 5 V drive rail => zero gate current => the shared
     crossover helper must clamp, not divide by zero (surfaced by the Pareto
-    tool on BSC060N10NS3, V_plateau=5.0)."""
+    tool on a V_plateau-at-rail part)."""
     from pyspice_openfoam_agent.spice.losses import crossover_time
 
     class P:

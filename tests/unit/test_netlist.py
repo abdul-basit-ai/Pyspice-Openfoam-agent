@@ -78,9 +78,9 @@ def test_selection_picks_lowest_rds_on_that_qualifies(lib: Library) -> None:
     spec = Spec(**PUBLISHED)
     sizing = size(spec)
     sel = select_components(lib, spec, sizing)
-    # Hand-checked against mosfets.yaml: BSC014N04LS (1.4 mOhm, 40V, 100A) is
+    # Hand-checked against mosfets.yaml: CSD16415Q5 (1.15 mOhm, 25V, 100A) is
     # the lowest-Rds_on part that clears Vin=12V*1.2=14.4V and I_peak*1.3.
-    assert sel.mosfet.part_number == "BSC014N04LS"
+    assert sel.mosfet.part_number == "CSD16415Q5"
 
 
 def test_selection_raises_when_library_cannot_satisfy_spec(lib: Library) -> None:

@@ -105,7 +105,7 @@ def test_component_lever_used_when_airflow_fails(lib, spec) -> None:
 
     def evaluate(v_in, mosfet, fsw):
         seen_mosfets.append(mosfet.part_number)
-        if mosfet.part_number != "BSC030N04LS":  # baseline stays hot
+        if mosfet.part_number != "CSD16321Q5":  # baseline stays hot
             return 330.0, _fake_meta("better part")
         return 350.0, _fake_meta("hot")
 
@@ -113,8 +113,8 @@ def test_component_lever_used_when_airflow_fails(lib, spec) -> None:
     from pyspice_openfoam_agent.netlist.selector import select_mosfet
 
     # deliberately WORSE baseline than the best library part → component lever
-    # must fire (BSC014N04LS has 1.4 mOhm < 3.0 mOhm)
-    baseline = lib.mosfets["BSC030N04LS"]
+    # must fire (CSD16415Q5 has 1.15 mOhm < 2.4 mOhm, same 25V class)
+    baseline = lib.mosfets["CSD16321Q5"]
     outcome = run_mitigation(lib, spec, baseline, tj_limit_k=340.0,
                              evaluate=evaluate, baseline_tj_k=350.0)
     assert outcome.feasible

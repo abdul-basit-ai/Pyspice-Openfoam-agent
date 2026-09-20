@@ -1,29 +1,12 @@
 category: diodes
 # Curated from public manufacturer datasheets (Tier-1 static library).
 # Units: V, A, mV/K, ns, degC/W, degC.
-# All entries are Schottky barrier rectifiers (trr omitted = Schottky per
-# schema). Vf_25 is the datasheet value at the stated rated forward current.
+# All entries are Schottky barrier rectifiers from major trusted
+# manufacturers (Diodes Inc., Nexperia, onsemi). The former Vishay SS34/SS54
+# entries were removed in the 2026-09-20 trusted-manufacturer rework; 40 V
+# rectifier coverage is carried by B340A-13-F (3 A).
+# Vf_25 is the datasheet value at the stated rated forward current.
 parts:
-  - part_number: SS34
-    manufacturer: Vishay
-    Vf_25: 0.5
-    I_avg_max: 3.0
-    Vr_max: 40.0
-    package: SMA
-    Tj_max: 150.0
-    datasheet:
-      url: "https://www.vishay.com/doc/?88751"
-      note: "40V/3A Schottky, Vf ~0.5V at 3A"
-  - part_number: SS54
-    manufacturer: Vishay
-    Vf_25: 0.55
-    I_avg_max: 5.0
-    Vr_max: 40.0
-    package: SMA
-    Tj_max: 150.0
-    datasheet:
-      url: "https://www.vishay.com/doc/?88751"
-      note: "40V/5A Schottky (SS family), Vf ~0.55V at 5A (0.49V typ)"
   - part_number: B340A-13-F
     manufacturer: Diodes Incorporated
     Vf_25: 0.5

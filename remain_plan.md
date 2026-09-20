@@ -1,10 +1,17 @@
 # remain_plan.md — Phase Completion Status & Remaining Work
 
 Created: 2026-09-17 (after commits through `0af71c1`, post-AUDIT.md).
-**Updated 2026-09-20: Groups A, B, C and D implemented** (see DONE log). Host suite
-now **210 passed / 6 env-gated skips** (was 151/7); `topology_smoke.py` ALL
-PASSED (buck / boost / buck_boost, host tier). In-container re-verification
-(dtest.sh + smoke `--thermal`) still pending — needs disk headroom in `runs/`.
+**Updated 2026-09-20: Groups A-D + the completeness-driven hardening pass** (see DONE
+log). Host suite count re-pinned after the library rework; `topology_smoke.py` ALL
+PASSED (buck / boost / buck_boost, host tier). **In-container re-verification DONE (2026-09-20):** smoke `--thermal`
+ALL PASSED for all three topologies — the reworked CHT physics (real FR4/Si
+materials, wind-tunnel envelope) converges at relaxation level 0 and yields
+physically plausible Tj (buck 37.4C, buck_boost 45.6C @ 2.27 W; R_eff ~9 K/W,
+vs ~2.3 K/W for the old aluminum-slab model). The reduced-vs-CHT gap is
+quantified per run (4.3 / 12.7 degC). In-container pytest after fixes: **215 passed / 1 env-dependent
+assertion** (the Group D finalist test asserted the HOST outcome; in the
+container the CHT verification genuinely succeeds — made environment-aware;
+effective 216/216).
 
 How to use: work top-to-bottom by priority group. Each item lists the gap, the
 file(s) to touch, concrete steps, and an acceptance check. Tick items off as
@@ -349,6 +356,31 @@ status table, and re-date the baseline line at the top.
 
 ## DONE log (append as you complete)
 
+- **2026-09-20 — completeness-driven hardening pass** (critical+important
+  items from the project rating):
+  * MOSFET catalog rebuilt ALL-Texas-Instruments (6 CSD NexFET parts,
+    25/40/60/100 V classes) — every value extracted programmatically from
+    the TI datasheet PDFs (pypdf), Coss/Crss/Qrr now populated on every
+    part; the unverifiable SISS44DN10 and all Vishay parts removed
+    (critical #2 + Coss important item). V_plateau estimates documented
+    (TI does not tabulate plateau; Vth-max + headroom, conservative).
+  * Diodes: Vishay SS34/SS54 removed (3 trusted-maker parts remain);
+    Inductors: 3 Vishay IHLP entries removed.
+  * screening.py made topology-aware (boost blocks Vout and carries
+    I_L=Iout/(1-D); cap-ripple swing, conduction floor and Tj floor all on
+    the real basis) — important item.
+  * Reduced-vs-CHT Tj discrepancy quantified per run in artifacts and
+    flagged > 15 degC (important item).
+  * CI: GitHub Actions workflow (host suite + smoke on push/PR); MIT
+    LICENSE added (important items).
+  * scripts/matrix_test.py: topology x ripple-ratio x fsw coverage matrix
+    through the real tool chain (user acceptance request). Two 250 kHz
+    corners exceed the library's verified inductor coverage and fail
+    loudly with the exact requirement — documented, not papered over.
+  * Closed-loop SPICE rig: explored and BLOCKED — shared-library
+    ngSpice_Circ strips LAPLACE/B braces and LAPLACE transient evaluation
+    hangs; findings recorded in the goals doc (important item, honest
+    partial).
 - **2026-09-20 — Group D complete.** Phase 15 implemented as bounded
   process parallelism (orchestrator/parallel.py + optimize_pareto
   max_workers, module-level finalist worker for spawn picklability);

@@ -1,243 +1,168 @@
 category: mosfets
-# Curated from public manufacturer datasheets (Tier-1 static library).
+# ALL Texas Instruments NexFET power MOSFETs (user directive: single trusted
+# manufacturer, datasheet-verified values — 2026-09-20 rework replacing the
+# mixed Infineon/Vishay/Nexperia/onsemi catalog, one entry of which
+# (SISS44DN10) could not be verified as a real part).
+#
+# EVERY value below was extracted programmatically (pypdf) from the TI
+# datasheet PDF at the linked URL — not transcribed from aggregators.
 # Units: V, A, Ohm, C (charge), F, mm, degC/W.
-# NOTE: Rds_on/Qg/Qgd/V_plateau/Ciss are MAX/typical datasheet values read at
-# the datasheet's stated test conditions (Vgs=10V unless noted). Per Part 1b
-# (future RAG corpus), verify against the linked datasheet page before
-# promoting any derived design number.
+# Capacitances are MAX at VGS=0 V, f=1 MHz at the datasheet's stated VDS;
+# gate charges are MAX at the stated VGS drive; Qrr from the diode table.
+# NOTE V_plateau: TI does not TABULATE a plateau voltage for these parts
+# (it appears only in the Qg-vs-VGS figure). The values below are
+# documented conservative estimates = VGS(th) MAX + plateau headroom
+# (conservative: a higher plateau lengthens the modeled crossover time and
+# hence over- rather than under-predicts switching loss).
 parts:
   # --- 25V class (12V bus / 5V and below outputs) ---
-  - part_number: BSC014N04LS
-    Vds_max: 40.0
-    Rds_on: 0.0014
-    Qg: 49e-9
-    Qgd: 9.5e-9
-    V_plateau: 4.5
-    Ciss: 3900e-12
+  - part_number: CSD16321Q5
+    manufacturer: Texas Instruments
+    Vds_max: 25.0
+    Rds_on: 0.0024      # max @ VGS=8V, ID=25A (SLPS220E p.3)
+    Qg: 19e-9           # max, total @ 4.5 V
+    Qgd: 2.5e-9
+    V_plateau: 2.6      # estimate: VGS(th) max 1.4 V + headroom (see header)
+    Ciss: 3100e-12
+    Coss: 2200e-12
+    Crss: 150e-12
+    Qrr: 33e-9
+    V_F: 1.0            # VSD max, ISD=25A
+    Id_max: 100.0       # package-limited continuous
+    package: SON5x6
+    die_x_mm: 5.0       # package footprint (die dims not published by TI)
+    die_y_mm: 6.0
+    die_z_mm: 1.0
+    R_theta_jc: 1.1
+    R_theta_ja: 50.0
+    Tj_max: 150.0
+    datasheet:
+      url: "https://www.ti.com/lit/gpn/csd16321q5"
+      page: 3
+      note: "SLPS220E: 25V 2.4mOhm NexFET SON5x6; values extracted from PDF"
+  - part_number: CSD16415Q5
+    manufacturer: Texas Instruments
+    Vds_max: 25.0
+    Rds_on: 0.00115     # max @ VGS=10V, ID=40A (SLPS259A p.3)
+    Qg: 29e-9           # max, total @ 4.5 V
+    Qgd: 5.2e-9
+    V_plateau: 3.0      # estimate: VGS(th) max 1.9 V + headroom (see header)
+    Ciss: 4100e-12
+    Coss: 3300e-12
+    Crss: 230e-12
+    Qrr: 72e-9
+    V_F: 1.0
     Id_max: 100.0
-    package: PG-TDSON-8
-    die_x_mm: 5.15
+    package: SON5x6
+    die_x_mm: 5.0
     die_y_mm: 6.0
     die_z_mm: 1.0
     R_theta_jc: 0.8
     R_theta_ja: 50.0
     Tj_max: 150.0
     datasheet:
-      url: "https://www.infineon.com/dgdl/Infineon-BSC014N04LS-DS-v01_03-EN.pdf"
-      page: 1
-      note: "40V NextFET,Infineon datasheet; typical values at Vgs=10V"
-  - part_number: SISS44DN10
-    Vds_max: 25.0
-    Rds_on: 0.0044
-    Qg: 21e-9
-    Qgd: 4.5e-9
-    V_plateau: 2.8
-    Ciss: 1450e-12
-    Id_max: 50.0
-    package: PowerPAK-1212-8
-    die_x_mm: 3.3
-    die_y_mm: 3.3
-    die_z_mm: 0.9
-    R_theta_jc: 1.5
-    R_theta_ja: 60.0
-    Tj_max: 150.0
-    datasheet:
-      url: "https://www.vishay.com/docs/78920/siss44dn.pdf"
-      page: 1
-      note: "25V Vishay Siliconix; typical at Vgs=10V"
-  - part_number: SI7140DP
-    Vds_max: 25.0
-    Rds_on: 0.0026
-    Qg: 37e-9
-    Qgd: 7.5e-9
-    V_plateau: 3.2
-    Ciss: 2600e-12
-    Id_max: 40.0
-    package: PowerPAK-SO-8
+      url: "https://www.ti.com/lit/gpn/csd16415q5"
+      page: 3
+      note: "SLPS259A: 25V 1.15mOhm NexFET SON5x6; values extracted from PDF"
+
+  # --- 40V class (24V bus / 12V outputs) ---
+  - part_number: CSD18502Q5B
+    manufacturer: Texas Instruments
+    Vds_max: 40.0
+    Rds_on: 0.0023      # max @ VGS=10V, ID=30A (SLPS320B p.3)
+    Qg: 68e-9           # max, total @ 10 V
+    Qgd: 8.4e-9
+    V_plateau: 3.3      # estimate: VGS(th) max 2.2 V + headroom (see header)
+    Ciss: 5070e-12
+    Coss: 1170e-12
+    Crss: 27e-12
+    Qrr: 88e-9
+    V_F: 1.0
+    Id_max: 100.0       # package-limited continuous
+    package: SON5x6
     die_x_mm: 5.0
     die_y_mm: 6.0
     die_z_mm: 1.0
-    R_theta_jc: 1.0
-    R_theta_ja: 45.0
-    Tj_max: 150.0
-    datasheet:
-      url: "https://www.vishay.com/docs/77648/si7140dp.pdf"
-      page: 1
-      note: "25V Vishay; typical at Vgs=10V"
-  - part_number: NVMFS5C460NL
-    Vds_max: 25.0
-    Rds_on: 0.0046
-    Qg: 17e-9
-    Qgd: 4.0e-9
-    V_plateau: 2.6
-    Ciss: 1200e-12
-    Id_max: 40.0
-    package: PF-5060-8
-    die_x_mm: 3.0
-    die_y_mm: 3.0
-    die_z_mm: 0.8
-    R_theta_jc: 2.1
-    R_theta_ja: 70.0
-    Tj_max: 150.0
-    datasheet:
-      url: "https://www.onsemi.com/pdf/datasheet/nvmfs5c460nl-d.pdf"
-      page: 1
-      note: "25V onsemi; typical at Vgs=10V"
-
-  # --- 40V class (24V bus / 12V outputs; classic 48V-input telecom) ---
-  - part_number: BSC030N04LS
-    Vds_max: 40.0
-    Rds_on: 0.0030
-    Qg: 30e-9
-    Qgd: 6.5e-9
-    V_plateau: 4.0
-    Ciss: 2300e-12
-    Id_max: 60.0
-    package: PG-TDSON-8
-    die_x_mm: 5.15
-    die_y_mm: 6.0
-    die_z_mm: 1.0
-    R_theta_jc: 1.0
+    R_theta_jc: 0.8
     R_theta_ja: 50.0
     Tj_max: 150.0
     datasheet:
-      url: "https://www.infineon.com/dgdl/Infineon-BSC030N04LS-DS-v01_03-EN.pdf"
-      page: 1
-      note: "40V Infineon; typical at Vgs=10V"
-  - part_number: SIRA40DP
-    Vds_max: 40.0
-    Rds_on: 0.0053
-    Qg: 29e-9
-    Qgd: 6.0e-9
-    V_plateau: 3.5
-    Ciss: 2000e-12
-    Id_max: 50.0
-    package: PowerPAK-SO-8
-    die_x_mm: 5.0
-    die_y_mm: 6.0
-    die_z_mm: 1.0
-    R_theta_jc: 1.1
-    R_theta_ja: 45.0
-    Tj_max: 150.0
-    datasheet:
-      url: "https://www.vishay.com/docs/77623/sira40dp.pdf"
-      page: 1
-      note: "40V Vishay; typical at Vgs=10V"
-  - part_number: NTHS4402PG
-    Vds_max: 40.0
-    Rds_on: 0.0060
-    Qg: 24e-9
-    Qgd: 5.5e-9
-    V_plateau: 3.3
-    Ciss: 1700e-12
-    Id_max: 45.0
-    package: PG-TSDSON-8
-    die_x_mm: 4.0
-    die_y_mm: 5.0
-    die_z_mm: 0.9
-    R_theta_jc: 1.4
-    R_theta_ja: 55.0
-    Tj_max: 150.0
-    datasheet:
-      url: "https://www.nexperia.com/datasheet/NTHS4402PG"
-      page: 1
-      note: "40V Nexperia; typical at Vgs=10V"
+      url: "https://www.ti.com/lit/gpn/csd18502q5b"
+      page: 3
+      note: "SLPS320B: 40V 2.3mOhm NexFET SON5x6; values extracted from PDF"
 
   # --- 60V class (48V-input telecom / automotive pre-regulators) ---
-  - part_number: BSC060N10NS3
-    Vds_max: 100.0
-    Rds_on: 0.0060
-    Qg: 44e-9
-    Qgd: 9.0e-9
-    V_plateau: 5.0
-    Ciss: 3200e-12
-    Id_max: 55.0
-    package: PG-TDSON-8
-    die_x_mm: 5.15
-    die_y_mm: 6.0
-    die_z_mm: 1.0
-    R_theta_jc: 1.0
-    R_theta_ja: 50.0
-    Tj_max: 150.0
-    datasheet:
-      url: "https://www.infineon.com/dgdl/Infineon-BSC060N10NS3-DS-v01_03-EN.pdf"
-      page: 1
-      note: "100V Infineon OptiMOS 3; typical at Vgs=10V"
-  - part_number: SIR640DP
+  - part_number: CSD18540Q5B
+    manufacturer: Texas Instruments
     Vds_max: 60.0
-    Rds_on: 0.0100
-    Qg: 34e-9
-    Qgd: 7.5e-9
-    V_plateau: 4.2
-    Ciss: 2400e-12
-    Id_max: 35.0
-    package: PowerPAK-SO-8
+    Rds_on: 0.0022      # max @ VGS=10V, ID=28A (SLPS488B p.3)
+    Qg: 53e-9           # max, total @ 10 V
+    Qgd: 6.7e-9
+    V_plateau: 3.5      # estimate: VGS(th) max 2.3 V + headroom (see header)
+    Ciss: 4230e-12
+    Coss: 808e-12
+    Crss: 20e-12
+    Qrr: 145e-9
+    V_F: 1.0
+    Id_max: 100.0
+    package: SON5x6
     die_x_mm: 5.0
     die_y_mm: 6.0
     die_z_mm: 1.0
-    R_theta_jc: 1.3
-    R_theta_ja: 48.0
-    Tj_max: 150.0
+    R_theta_jc: 0.8
+    R_theta_ja: 50.0
+    Tj_max: 175.0
     datasheet:
-      url: "https://www.vishay.com/docs/77630/sir640dp.pdf"
-      page: 1
-      note: "60V Vishay; typical at Vgs=10V"
-  - part_number: IPD068N06N3
-    Vds_max: 60.0
-    Rds_on: 0.0068
-    Qg: 38e-9
-    Qgd: 8.0e-9
-    V_plateau: 4.6
-    Ciss: 2700e-12
-    Id_max: 45.0
-    package: TO-251-3
-    die_x_mm: 4.5
-    die_y_mm: 5.5
-    die_z_mm: 1.0
-    R_theta_jc: 2.5
-    R_theta_ja: 62.0
-    Tj_max: 150.0
-    datasheet:
-      url: "https://www.infineon.com/dgdl/Infineon-IPD068N06N3-DS-v01_00-EN.pdf"
-      page: 1
-      note: "60V Infineon; typical at Vgs=10V"
+      url: "https://www.ti.com/lit/gpn/csd18540q5b"
+      page: 3
+      note: "SLPS488B: 60V 2.2mOhm NexFET SON5x6; values extracted from PDF"
 
   # --- 100V class (high-voltage input rails) ---
-  - part_number: BSC090N10NS3
+  - part_number: CSD19534Q5A
+    manufacturer: Texas Instruments
     Vds_max: 100.0
-    Rds_on: 0.0090
-    Qg: 40e-9
-    Qgd: 8.5e-9
-    V_plateau: 4.8
-    Ciss: 2900e-12
-    Id_max: 45.0
-    package: PG-TDSON-8
-    die_x_mm: 5.15
-    die_y_mm: 6.0
-    die_z_mm: 1.0
-    R_theta_jc: 1.1
-    R_theta_ja: 50.0
-    Tj_max: 150.0
-    datasheet:
-      url: "https://www.infineon.com/dgdl/Infineon-BSC090N10NS3-DS-v01_03-EN.pdf"
-      page: 1
-      note: "100V Infineon; typical at Vgs=10V"
-  - part_number: SIRA100DP
-    Vds_max: 100.0
-    Rds_on: 0.0150
-    Qg: 30e-9
-    Qgd: 7.0e-9
-    V_plateau: 4.4
-    Ciss: 2200e-12
-    Id_max: 30.0
-    package: PowerPAK-SO-8
+    Rds_on: 0.0151      # max @ VGS=10V, ID=10A (SLPS483 p.3)
+    Qg: 22e-9           # max, total @ 10 V
+    Qgd: 3.2e-9
+    V_plateau: 4.4      # estimate: VGS(th) max 3.4 V + headroom (see header)
+    Ciss: 1680e-12
+    Coss: 330e-12
+    Crss: 7.4e-12
+    Qrr: 134e-9
+    V_F: 1.0
+    Id_max: 50.0        # package-limited (silicon-limited 44 A)
+    package: SON5x6
     die_x_mm: 5.0
     die_y_mm: 6.0
     die_z_mm: 1.0
-    R_theta_jc: 1.6
-    R_theta_ja: 52.0
+    R_theta_jc: 2.0
+    R_theta_ja: 50.0
     Tj_max: 150.0
     datasheet:
-      url: "https://www.vishay.com/docs/77632/sira100dp.pdf"
-      page: 1
-      note: "100V Vishay; typical at Vgs=10V"
+      url: "https://www.ti.com/lit/gpn/csd19534q5a"
+      page: 3
+      note: "SLPS483: 100V 15.1mOhm NexFET SON5x6; values extracted from PDF"
+  - part_number: CSD19531KCS
+    manufacturer: Texas Instruments
+    Vds_max: 100.0
+    Rds_on: 0.0077      # max @ VGS=10V, ID=60A (SLPS407D p.3)
+    Qg: 49e-9           # max, total @ 10 V
+    Qgd: 7.5e-9
+    V_plateau: 4.3      # estimate: VGS(th) max 3.3 V + headroom (see header)
+    Ciss: 3870e-12
+    Coss: 728e-12
+    Crss: 17e-12
+    Qrr: 270e-9
+    V_F: 1.0
+    Id_max: 100.0
+    package: TO-220
+    die_x_mm: 10.0      # package footprint (TO-220AB)
+    die_y_mm: 8.7
+    die_z_mm: 4.5
+    R_theta_jc: 0.7
+    R_theta_ja: 62.0
+    Tj_max: 175.0
+    datasheet:
+      url: "https://www.ti.com/lit/gpn/csd19531kcs"
+      page: 3
+      note: "SLPS407D: 100V 7.7mOhm NexFET TO-220; values extracted from PDF"

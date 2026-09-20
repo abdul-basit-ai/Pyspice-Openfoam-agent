@@ -118,7 +118,7 @@ def test_finalize_writes_design_json(tmp_path):
     assert d.requirements.Vin == 12.0 and d.requirements.Vout == 5.0
     assert d.topology.name == "buck"
     assert d.components.mosfet is not None
-    assert d.components.mosfet.part_number == "BSC014N04LS"
+    assert d.components.mosfet.part_number == "CSD16415Q5"
     assert d.parameters.duty_cycle == pytest.approx(5.0 / 12.0, abs=0.05)
 
 

@@ -202,13 +202,13 @@ def test_override_substitution_pipeline(tmp_path, lib):
     ctx = _ctx(tmp_path / "sub", lib)
     r = _run_pipeline(ctx, dict(Vin=12, Vout=5, Iout=2, fsw_khz=500,
                                 Vripple=0.05),
-                      mosfet="BSC030N04LS")
+                      mosfet="CSD18502Q5B")
     assert r.ok, r.payload
-    assert ctx.design.components.mosfet.part_number == "BSC030N04LS"
+    assert ctx.design.components.mosfet.part_number == "CSD18502Q5B"
     r2 = dispatch(ctx, "run_spice", {})
     assert r2.ok, r2.payload
     netlist_text = ctx.netlist_path.read_text()
     # provenance comment names the substituted part; the behavioral switches
-    # carry its Rds_on (3.0 mOhm = 3.0e-03) as the .model value
-    assert "BSC030N04LS" in netlist_text
-    assert re.search(r"\.model\s+\S+\s+SW\(Ron=3\.0+e-03", netlist_text)
+    # carry its Rds_on (2.3 mOhm = 2.3e-03) as the .model value
+    assert "CSD18502Q5B" in netlist_text
+    assert re.search(r"\.model\s+\S+\s+SW\(Ron=2\.30*e-03", netlist_text)

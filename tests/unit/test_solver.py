@@ -36,7 +36,7 @@ _requires_solver = pytest.mark.skipif(
 def solved_case():
     """Build, mesh, and solve one real CHT case."""
     lib = load_library()
-    geo = build_board_geometry(lib.mosfets["BSC014N04LS"])
+    geo = build_board_geometry(lib.mosfets["CSD16415Q5"])
     # Phase 5 loss values (verified earlier: ~2.6W total)
     power = {"hs_mosfet": 1.30, "ls_mosfet": 1.30, "inductor": 0.04}
     cp = build_case(geo, power, "runs/phase8_test")

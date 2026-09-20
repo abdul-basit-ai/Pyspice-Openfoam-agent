@@ -7,10 +7,10 @@ check, no simulation.
 
 Hand-checked anchors:
 - JESD51-3 board is 76 x 114 mm; JEDEC copper >= 50 um.
-- BSC014N04LS die 5.15 x 6.0 mm -> HS zone [30.0, 35.15] x [35.0, 41.0].
+- CSD16415Q5 package footprint 5.0 x 6.0 mm -> HS zone [30.0, 35.0] x [35.1, 41.1].
 - Row order HS, LS, inductor (12x12 default) with 8 mm gaps:
-  HS ends 35.15, LS spans [43.15, 48.30], inductor spans [56.30, 68.30].
-  All inside 114 mm length. Center y = 38.0 for all.
+  HS ends 35.0, LS spans [43.0, 48.0], inductor spans [56.0, 68.0].
+  All inside 114 mm length. Center y = 38.1 for all.
 """
 
 from __future__ import annotations
@@ -52,9 +52,9 @@ def test_three_packages_place_without_overlap(lib) -> None:
     """The plan's checkpoint: 2-3 different MOSFET packages, no overlap,
     correct centering."""
     parts = [
-        lib.mosfets["BSC014N04LS"],  # PG-TDSON-8, die 5.15 x 6.0
-        lib.mosfets["SISS44DN10"],  # PowerPAK-1212, die 3.3 x 3.3
-        lib.mosfets["IPD068N06N3"],  # TO-251, die 4.5 x 5.5
+        lib.mosfets["CSD16415Q5"],  # TI SON5x6, footprint 5.0 x 6.0
+        lib.mosfets["CSD16321Q5"],  # TI SON5x6, footprint 5.0 x 6.0
+        lib.mosfets["CSD19531KCS"],  # TI TO-220, footprint 10.0 x 8.7
     ]
     for m in parts:
         geo = build_board_geometry(m)
@@ -73,7 +73,7 @@ def test_three_packages_place_without_overlap(lib) -> None:
 
 
 def test_mosfet_zone_uses_die_dimensions() -> None:
-    m = load_library().mosfets["BSC014N04LS"]
+    m = load_library().mosfets["CSD16415Q5"]
     geo = build_board_geometry(m)
     hs = geo.zones["hs_mosfet"]
     assert hs.x_max - hs.x_min == pytest.approx(m.die_x_mm)
@@ -86,7 +86,7 @@ def test_mosfet_zone_uses_die_dimensions() -> None:
 
 
 def test_row_positions_are_deterministic() -> None:
-    m = load_library().mosfets["BSC014N04LS"]
+    m = load_library().mosfets["CSD16415Q5"]
     geo = build_board_geometry(m)
     hs, ls, ind = _zones_in_board_order(geo)
     assert ls.x_min == hs.x_max + DEVICE_GAP_MM
@@ -97,14 +97,14 @@ def test_row_positions_are_deterministic() -> None:
 
 
 def test_row_overflow_raises() -> None:
-    m = load_library().mosfets["BSC014N04LS"]
+    m = load_library().mosfets["CSD16415Q5"]
     # 3 giant inductors in a row blow past the 114mm board
     with pytest.raises(LayoutError, match="exceeds board length"):
         build_board_geometry(m, inductor_x_mm=80.0)
 
 
 def test_fluid_envelope_covers_board_with_margins() -> None:
-    m = load_library().mosfets["BSC014N04LS"]
+    m = load_library().mosfets["CSD16415Q5"]
     geo = build_board_geometry(m)
     dom = geo.domain
     assert dom["x_min_mm"] < 0 < BOARD_LENGTH_MM < dom["x_max_mm"]

@@ -81,8 +81,19 @@ streamlit run ui/app.py                      # scripted mode needs no LLM key
 ```
 
 Current verification baseline: **210 passed / 6 env-gated skips** on the
-Windows host; all three topologies pass the smoke end to end. The canonical
-environment (including the CHT tier) is the Docker image:
+Windows host; all three topologies pass the smoke end to end. For design-space
+coverage there is a full matrix runner — every topology x ripple ratio x
+switching frequency through the real tool chain:
+
+```bash
+python scripts/matrix_test.py          # 27 cells; --quick for 12
+```
+
+Every MOSFET in the library is a **Texas Instruments NexFET** whose values
+were extracted programmatically from the TI datasheet PDFs (gate charge,
+capacitances, Qrr, thermal resistance) — no aggregator transcriptions, no
+invented numbers. The canonical environment (including the CHT tier) is the
+Docker image:
 
 ```bash
 docker compose -f docker/docker-compose.yml build

@@ -49,12 +49,26 @@ def screen(
     reasons: list[str] = []
     warnings: list[str] = []
 
-    # --- voltage stress on the MOSFET (buck: Vin + ringing headroom) ---
-    v_stress = spec_vin * 1.2  # 20% ringing headroom
+    # --- topology-aware stress basis (audit fix: everything below used buck
+    # physics for every topology — a boost's switch blocks Vout, not Vin, and
+    # carries I_L = Iout/(1-D), not Iout) ---
+    topo = sizing.topology
+    if topo == "boost":
+        v_block = spec_vout
+        i_l_avg = spec_iout / max(1.0 - min(max(sizing.D, 0.05), 0.95), 0.05)
+    elif topo == "buck_boost":
+        v_block = max(spec_vin, spec_vout)
+        i_l_avg = sizing.I_L_avg
+    else:  # buck
+        v_block = spec_vin
+        i_l_avg = sizing.I_L_avg
+
+    # --- voltage stress on the MOSFET (+20% ringing headroom) ---
+    v_stress = v_block * 1.2
     if mosfet.Vds_max < v_stress:
         reasons.append(
             f"MOSFET Vds_max {mosfet.Vds_max:.0f}V < switch stress {v_stress:.0f}V "
-            f"(Vin {spec_vin:.0f}V + 20% headroom)"
+            f"({topo}: blocks {v_block:.0f}V + 20% headroom)"
         )
 
     # --- current stress ---
@@ -81,8 +95,13 @@ def screen(
             f"Capacitor V_rated {capacitor.V_rated:.0f}V < Vout {spec_vout:.0f}V + 20%"
         )
 
-    # --- capacitor ripple current (fast estimate: ripple current ~ di_pp/sqrt(12)) ---
-    i_ripple_cap = sizing.di_pp / (12 ** 0.5)
+    # --- capacitor ripple current (topology-aware swing, same basis as the
+    # ripple-prediction section below) ---
+    if topo == "buck":
+        i_cap_swing = sizing.di_pp
+    else:
+        i_cap_swing = i_l_avg
+    i_ripple_cap = i_cap_swing / (12 ** 0.5)
     if i_ripple_cap > capacitor.Irms_max:
         warnings.append(
             f"Capacitor Irms_max {capacitor.Irms_max:.1f}A < estimated ripple current "
@@ -123,10 +142,11 @@ def screen(
                 f"predicted output ripple {v_pp_pred * 1e3:.1f} mV pp is within 20% "
                 f"of the {vripple_budget * 1e3:.1f} mV budget — SPICE will verify")
 
-    # --- conduction-loss efficiency floor (best-case efficiency estimate) ---
+    # --- conduction-loss efficiency floor (best-case efficiency estimate,
+    # on the topology's real inductor current, not Iout) ---
     r_total = mosfet.Rds_on + inductor.DCR
-    i2 = spec_iout ** 2
-    p_cond = i2 * r_total  # crude: assumes one FET conducting at a time, full duty
+    i2 = i_l_avg ** 2
+    p_cond = i2 * r_total
     p_out = spec_vout * spec_iout
     eff_best = p_out / (p_out + p_cond) if p_out > 0 else 0.0
     # best-case conduction-only efficiency: if even THIS is below a hard floor,
@@ -134,7 +154,7 @@ def screen(
     if eff_best < 0.5:
         reasons.append(
             f"Best-case conduction-only efficiency {eff_best * 100:.0f}% below 50% floor "
-            f"(Rds_on+DCR = {r_total * 1e3:.1f} mOhm at {spec_iout:.0f}A)"
+            f"(Rds_on+DCR = {r_total * 1e3:.1f} mOhm at I_L {i_l_avg:.1f}A)"
         )
     elif eff_best < 0.75:
         warnings.append(

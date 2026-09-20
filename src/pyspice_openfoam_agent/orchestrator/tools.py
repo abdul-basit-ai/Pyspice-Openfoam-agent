@@ -969,6 +969,17 @@ def tool_run_thermal(ctx: ToolContext, v_in_m_s: float | None = None,
     from pyspice_openfoam_agent.thermal.validation import validate_cht_result
 
     vv = validate_cht_result(result.log_path, result.tj_max, p_total)
+    # Reduced-vs-CHT discrepancy tracking (goals Phase 14/20 intent): the
+    # two-tier policy needs the fast/fast gap QUANTIFIED per run, not silent.
+    et = ctx.artifacts.get("electro_thermal") or {}
+    discrepancy: dict | None = None
+    if et.get("final_tj_C") is not None and result.tj_max is not None:
+        delta = abs(float(result.tj_max) - 273.15 - float(et["final_tj_C"]))
+        discrepancy = {
+            "reduced_tj_C": et["final_tj_C"], "cht_tj_C": round(float(result.tj_max) - 273.15, 2),
+            "delta_C": round(delta, 2),
+        }
+        ctx.artifacts["thermal_discrepancy"] = discrepancy
     ctx.artifacts["thermal"] = {
         "v_in_m_s": v_in, "tj_per_device_C": tj_c,
         "converged": bool(result.converged and vv.valid),
@@ -977,6 +988,14 @@ def tool_run_thermal(ctx: ToolContext, v_in_m_s: float | None = None,
         # K — the baseline Tj the Phase 10 mitigation loop gates on
         "tj_max_k": result.tj_max,
     }
+    if discrepancy is not None and discrepancy["delta_C"] > 15.0:
+        return {"error": f"CHT vs reduced-order Tj disagree by "
+                         f"{discrepancy['delta_C']:.1f} degC "
+                         f"(reduced {discrepancy['reduced_tj_C']:.1f} vs CHT "
+                         f"{discrepancy['cht_tj_C']:.1f}) — investigate the model "
+                         f"gap before trusting either number",
+                "converged": bool(result.converged and vv.valid),
+                "discrepancy": discrepancy, "tj_per_device_C": tj_c}
     if ctx.design is not None:  # Phase 4 (B5)
         ctx.design.thermal_case_dir = str(cp.root)
     if not vv.valid:
