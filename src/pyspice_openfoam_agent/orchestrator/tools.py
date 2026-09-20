@@ -399,6 +399,7 @@ TOOL_SCHEMAS = [
                 "pop_size": {"type": "integer", "description": "population (default 16)"},
                 "n_gen": {"type": "integer", "description": "generations (default 8)"},
                 "finalists": {"type": "integer", "description": "CHT-verified finalists (default 3)"},
+                "max_workers": {"type": "integer", "description": "parallel finalist processes (default 2; 1 = serial)"},
             },
         },
     },
@@ -1248,8 +1249,55 @@ def tool_run_step_tests(ctx: ToolContext, step_fraction: float = 0.5,
     return payload
 
 
+def _verify_finalist_worker(payload: dict) -> dict:
+    """Phase 15 (D1) finalist-verification worker — runs in its own PROCESS:
+    fresh library, fresh ToolContext, its own ngspice instance, isolated
+    run dir. Re-enters the real pipeline (sizing -> selection -> build ->
+    servo'd SPICE -> CHT when the container provides OpenFOAM) and returns
+    the verification entry for the parent to merge. Module-level + plain-dict
+    payload so it is picklable under Windows/macOS spawn."""
+    from pathlib import Path
+
+    from pyspice_openfoam_agent.library.loader import load_library
+    from pyspice_openfoam_agent.netlist.selector import (
+        SelectedComponents,
+        select_capacitor,
+        select_inductor,
+    )
+
+    lib = load_library()
+    child = ToolContext(run_dir=Path(payload["run_dir"]), library=lib,
+                        v_in_default=payload["v_in_m_s"])
+    s = payload["spec"]
+    spec2 = Spec(Vin=s["Vin"], Vout=s["Vout"], Iout=s["Iout"],
+                 fsw=payload["fsw_khz"] * 1e3, Vripple=s["Vripple"],
+                 ripple_ratio=s["ripple_ratio"])
+    sizing2 = size(spec2)
+    sel2 = SelectedComponents(
+        mosfet=lib.mosfets[payload["mosfet_pn"]],
+        inductor=select_inductor(lib, sizing2),
+        capacitor=select_capacitor(lib, spec2, sizing2)[0],
+    )
+    child.spec, child.sizing, child.selected = spec2, sizing2, sel2
+    nb = tool_build_netlist(child)
+    if "error" in nb:
+        raise RuntimeError(f"netlist build failed: {nb['error']}")
+    spice = tool_run_spice(child)
+    if "error" in spice:
+        raise RuntimeError(f"SPICE failed: {spice['error']}")
+    th = tool_run_thermal(child, v_in_m_s=payload["v_in_m_s"])
+    if "error" in th:
+        raise RuntimeError(f"CHT failed: {th['error']}")
+    return {
+        "verified": True, "cht_tj_max_C": th.get("tj_max_C"),
+        "measured_efficiency": spice.get("efficiency"),
+        "tj_per_device_C": th.get("tj_per_device_C"),
+        "run_dir": str(child.run_dir),
+    }
+
+
 def tool_optimize_pareto(ctx: ToolContext, pop_size: int = 16, n_gen: int = 8,
-                         finalists: int = 3) -> dict:
+                         finalists: int = 3, max_workers: int = 2) -> dict:
     """Phase 14: NSGA-II (reduced-order tier) + full-CHT verification of the
     top finalists (two-tier fidelity policy). Finalists re-enter the REAL
     pipeline (sizing -> selection -> SPICE -> CHT) on child contexts."""
@@ -1276,62 +1324,61 @@ def tool_optimize_pareto(ctx: ToolContext, pop_size: int = 16, n_gen: int = 8,
                          "cleared the screening (check the spec vs library)"}
 
     # --- two-tier policy: verify top-K finalists with full CHT ---
+    # Phase 15 (D1): finalists are INDEPENDENT pipelines (own run dir, own
+    # parts, own servo) — they evaluate through a bounded PROCESS pool
+    # (never threads: one shared ngspice instance per process, audit 1.1).
     k = max(0, min(int(finalists), 5))
     top = sorted(front, key=lambda c: -c.efficiency)[:k]
-    verified: list[dict] = []
-    from pyspice_openfoam_agent.netlist.selector import (
-        SelectedComponents,
-        select_capacitor,
-        select_inductor,
-    )
+    from pyspice_openfoam_agent.orchestrator.parallel import evaluate_parallel
 
+    payloads = []
+    entries: list[dict | None] = []
     for n, cand in enumerate(top, 1):
-        entry = {
+        entries.append({
             "mosfet": cand.mosfet_pn, "fsw_khz": cand.fsw_khz,
             "L_uh": cand.L_uh, "v_in_m_s": cand.v_in_m_s,
             "efficiency_est": cand.efficiency, "tj_est_C": cand.tj_max_c,
-        }
-        mos = ctx.library.mosfets.get(cand.mosfet_pn)
-        if mos is None:
-            entry.update(verified=False, reason="MOSFET not in library")
-            verified.append(entry)
+        })
+        if cand.mosfet_pn not in ctx.library.mosfets:
+            entries[-1].update(verified=False, reason="MOSFET not in library")
+            payloads.append(None)  # no worker run needed
             continue
-        child = ToolContext(run_dir=Path(ctx.run_dir) / f"pareto_{n}",
-                            library=ctx.library, v_in_default=cand.v_in_m_s)
-        try:
-            spec2 = Spec(Vin=ctx.spec.Vin, Vout=ctx.spec.Vout, Iout=ctx.spec.Iout,
-                         fsw=cand.fsw_khz * 1e3, Vripple=ctx.spec.Vripple,
-                         ripple_ratio=ctx.spec.ripple_ratio)
-            sizing2 = size(spec2)
-            sel2 = SelectedComponents(
-                mosfet=mos,
-                inductor=select_inductor(ctx.library, sizing2),
-                capacitor=select_capacitor(ctx.library, spec2, sizing2)[0],
-            )
-            child.spec, child.sizing, child.selected = spec2, sizing2, sel2
-            nb = tool_build_netlist(child)
-            if "error" in nb:
-                raise RuntimeError(f"netlist build failed: {nb['error']}")
-            spice = tool_run_spice(child)
-            if "error" in spice:
-                raise RuntimeError(f"SPICE failed: {spice['error']}")
-            th = tool_run_thermal(child, v_in_m_s=cand.v_in_m_s)
-            if "error" in th:
-                raise RuntimeError(f"CHT failed: {th['error']}")
-            entry.update(
-                verified=True, cht_tj_max_C=th.get("tj_max_C"),
-                measured_efficiency=spice.get("efficiency"),
-                tj_per_device_C=th.get("tj_per_device_C"),
-                run_dir=str(child.run_dir),
-            )
-        except Exception as e:  # noqa: BLE001 — tool contract, not exception
-            entry.update(verified=False, reason=f"verification pipeline failed: {e}")
-        verified.append(entry)
+        payloads.append({
+            "n": n,
+            "run_dir": str(Path(ctx.run_dir) / f"pareto_{n}"),
+            "mosfet_pn": cand.mosfet_pn, "fsw_khz": cand.fsw_khz,
+            "v_in_m_s": cand.v_in_m_s,
+            # spec passthrough (plain primitives: picklable under spawn)
+            "spec": {
+                "Vin": ctx.spec.Vin, "Vout": ctx.spec.Vout,
+                "Iout": ctx.spec.Iout, "Vripple": ctx.spec.Vripple,
+                "ripple_ratio": ctx.spec.ripple_ratio,
+            },
+        })
+    results = evaluate_parallel(
+        [p for p in payloads if p is not None],
+        _verify_finalist_worker,
+        max_workers=max(1, int(max_workers)),
+    )
+    # merge worker results back into input order
+    ri = 0
+    for i, entry in enumerate(entries):
+        if payloads[i] is None or entry is None:
+            continue
+        res = results[ri]
+        ri += 1
+        if isinstance(res, dict) and "error" in res:
+            entry.update(verified=False,
+                         reason=f"verification pipeline failed: {res['error']}")
+        else:
+            entry.update(res)
+    verified = [e for e in entries if e is not None]
 
     ctx.artifacts["pareto"] = {
         "n_front": len(front),
         "front": [vars(c) for c in front],
         "finalists": verified,
+        "max_workers": max(1, int(max_workers)),
     }
     return {
         "n_front": len(front),

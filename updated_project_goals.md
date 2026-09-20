@@ -696,6 +696,12 @@ Load step
 Input step
 ```
 
+> **STATUS (2026-09-20):** Vin sweep, load sweep, startup, load step and
+> input step are implemented (`run_sweeps`, `run_step_tests` tools).
+> Temperature and component-tolerance sweeps are DESCOPED: the Phase 3 rig
+> carries no temperature-dependent component models or tolerance sampling —
+> stated rather than half-implemented.
+
 ## User-question policy
 
 If the requested simulation envelope is unclear, use a conservative
@@ -782,6 +788,12 @@ board/component representation.
 ## Advanced capability
 
 Allow physical placement to become an optimization variable.
+
+> **STATUS (2026-09-20):** DESCOPED. The board template is deliberately
+> FIXED (JEDEC JESD51-3 deterministic layout) — placement-as-variable would
+> break the datasheet comparability that fixed geometry provides. Revisit
+> only if a use case demands a custom-layout mode SEPARATE from the JEDEC
+> reference path.
 
 Optimize:
 
@@ -1007,6 +1019,17 @@ Each candidate must have isolated artifacts and reproducible parameters.
 Candidate evaluation during exploration uses the fast reduced-order
 thermal model per the two-tier thermal fidelity policy in Phase 14; full
 CHT is reserved for Pareto-front finalists.
+
+> **IMPLEMENTATION STATUS (2026-09-20):** Implemented as bounded PROCESS
+> parallelism (`orchestrator/parallel.py` + `optimize_pareto.max_workers`).
+> Processes, not threads, are mandatory here: `spice/runner.py` keeps one
+> process-wide shared ngspice instance (PySpice 1.5 crashes on a second
+> instance per process), so concurrent threads would interleave circuits on
+> one instance. Each candidate pipeline gets its own process, library,
+> ngspice instance and run dir (isolated artifacts); worker failures are
+> captured per-candidate and a pool-startup failure degrades to serial.
+> The NSGA-II reduced-order inner loop stays serial by design — it costs
+> microseconds per candidate, less than any scheduling overhead.
 
 ------------------------------------------------------------------------
 
@@ -1258,6 +1281,13 @@ Track error and use measured results to improve models.
 
 This phase provides the strongest transition from a software simulation
 project to a serious engineering research platform.
+
+> **IMPLEMENTATION STATUS (2026-09-20):** Deferred until physical hardware
+> exists — deliberately nothing built in software yet (no speculative
+> schema). The import point is ready: every run's `manifest.json` carries
+> the electrical/thermal numbers a bench comparison needs; when hardware
+> arrives, add a `measured_results.json` sidecar per run + a deterministic
+> sim-vs-measured comparison module feeding the Phase 19 memory.
 
 ------------------------------------------------------------------------
 

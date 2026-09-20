@@ -1,8 +1,8 @@
 # remain_plan.md — Phase Completion Status & Remaining Work
 
 Created: 2026-09-17 (after commits through `0af71c1`, post-AUDIT.md).
-**Updated 2026-09-19: Groups A, B and C implemented** (see DONE log). Host suite
-now **205 passed / 6 env-gated skips** (was 151/7); `topology_smoke.py` ALL
+**Updated 2026-09-20: Groups A, B, C and D implemented** (see DONE log). Host suite
+now **210 passed / 6 env-gated skips** (was 151/7); `topology_smoke.py` ALL
 PASSED (buck / boost / buck_boost, host tier). In-container re-verification
 (dtest.sh + smoke `--thermal`) still pending — needs disk headroom in `runs/`.
 
@@ -31,21 +31,21 @@ you go. Re-run the verification block at the bottom after every group.
 | 12 | CHT solve | **DONE** | (steady-state only, by documented scope decision) |
 | 13 | Extraction + validation | **DONE** | — |
 | 14 | Multi-objective optimization | **DONE (A5)** | `optimize_pareto` tool + CHT finalist verification; reduced-tier bugs fixed |
-| 15 | Parallel exploration | **MISSING** | Serial NSGA-II only; stub was removed |
+| 15 | Parallel exploration | **DONE (D1)** | bounded PROCESS pool (`orchestrator/parallel.py`) behind `optimize_pareto.max_workers`; per-candidate isolation + error capture + serial fallback |
 | 16 | Feedback / failure diagnosis | **DONE** | (auto-mitigation + caveats; HITL ask-before-change descoped) |
 | 17 | Interactive UI | **DONE (C3 minimum-viable)** | library-only part-override editor + input-range fields + Compare tab + re-run; waveform probe + node editing descoped (see flags) |
 | 18 | AI orchestrator | **DONE (B3)** | temperature=0 sent; every real call appends model/prompt/response to runs/<run>/llm_provenance.jsonl |
 | 19 | Memory / knowledge base | **DONE** | — |
 | 20 | HITL approval gates | **DESCOPED (B4, documented)** | status note added to goals doc Phase 20: best-effort contract + caveats/banners/provenance cover the intent; revisit only for concurrent operators |
-| 21 | Hardware validation | **NOT STARTED** | Requires physical bench — long-term item |
+| 21 | Hardware validation | **DESCOPED (D2, documented)** | goals-doc status note: nothing built until a bench exists; manifest.json is the sim-side import point for measured results |
 | 22 | Unified output package | **DONE (B2)** | finalize writes schema-valid manifest.json (feasible/infeasible/error) incl. ICs, protection posture, verification summaries, caveats |
 | 23 | Regression suite | **DONE (C4)** | all goals-named cases mapped: light/heavy load + substitution e2e (gated), mitigation gating, infeasible spec (hard) + beyond-library (loud), transients (Group A step tests) |
 
-Doc status (C5): CLAUDE.md is aligned again (IC libraries EXIST since A1;
+Doc status (C5/D): CLAUDE.md is aligned again (IC libraries EXIST since A1;
 Jinja2-template claim corrected — blockMeshDict is programmatic; temperature/
-provenance claim TRUE since B3; baselines refreshed: host 205/6, container
-number to be re-pinned after the next `dtest.sh`). PROJECT_STRUCTURE.md
-updated for the new modules.
+provenance claim TRUE since B3; parallel.py documented in D; baselines
+refreshed: host 210/6, container number to be re-pinned after the next
+`dtest.sh`). PROJECT_STRUCTURE.md updated for the new modules.
 
 ---
 
@@ -290,7 +290,31 @@ updated for the new modules.
 
 ---
 
-## Group D — Long-term / descoped (record, don't start now)
+## Group D — Long-term / descoped — **RESOLVED 2026-09-20**
+
+> What shipped (host: **210 passed / 6 CHT-gated skips**; new tests in
+> `tests/unit/test_group_d.py`):
+>
+> - **D1 Phase 15 (the one implementable item):** `orchestrator/parallel.py`
+>   — bounded PROCESS-parallel evaluation of independent candidates, wired
+>   behind `optimize_pareto(max_workers=2)`. Processes are mandatory (one
+>   shared ngspice instance per process — threads would interleave circuits);
+>   each finalist gets its own process/library/instance/run dir, worker
+>   failures are captured per candidate, pool-startup failure degrades to
+>   serial, results return in input order. The NSGA-II reduced-order inner
+>   loop stays serial by design (microseconds per candidate). Verified live:
+>   2 finalists in 2 processes, SPICE completed in both, per-finalist dirs on
+>   disk, CHT failed only with the honest container-only reason.
+> - **D2 Phase 21:** formal goals-doc status note — deferred until hardware;
+>   the planned import path is manifest.json + a future measured_results.json
+>   sidecar + a deterministic sim-vs-measured comparison feeding Phase 19.
+> - **D3 remaining descopes formally recorded in the goals doc:** Phase 8
+>   temperature/tolerance sweeps (rig has no temperature-dependent models),
+>   Phase 10 placement-as-optimization-variable (would break JEDEC
+>   comparability), Phase 12 transient thermal (pre-existing scope decision).
+>   The old `parallel/` stub-package note in PROJECT_STRUCTURE.md corrected.
+>
+> Original Group D plan (kept for reference):
 
 - **Phase 15 parallel evaluation**: serial NSGA-II is fast enough at current
   population sizes; revisit only if sweeps (A4) + Pareto (A5) get composed.
@@ -325,6 +349,13 @@ status table, and re-date the baseline line at the top.
 
 ## DONE log (append as you complete)
 
+- **2026-09-20 — Group D complete.** Phase 15 implemented as bounded
+  process parallelism (orchestrator/parallel.py + optimize_pareto
+  max_workers, module-level finalist worker for spawn picklability);
+  Phase 21 + tolerance/placement/transient-thermal descopes formally
+  recorded in updated_project_goals.md; CLAUDE.md + PROJECT_STRUCTURE.md
+  aligned. Host: **210 passed / 6 skips**. Tests: tests/unit/test_group_d.py
+  (5, incl. a real 2-process finalist e2e).
 - **2026-09-19 — Group C complete.** run_thermal fidelity param; crossover
   UI key fix; two-corner range sizing (vin_min/vin_max) incl. the
   topology-flip -> buck_boost rule; select_components part overrides
@@ -421,11 +452,13 @@ status table, and re-date the baseline line at the top.
   to re-pin in CLAUDE.md — host count is authoritative between container
   runs.
 
-### Group D flags (long-term / descoped)
-- 📋 P15 parallel: revisit only if sweeps + Pareto get composed into a batch
-  workload; natural design is a bounded `concurrent.futures` pool over
-  candidate evaluation.
-- 📋 P21 hardware: nothing to build until a bench exists; B2's manifest is
-  the only worthwhile prep.
-- 📌 Transient thermal is out of scope per the Phase 12 scope decision — do
-  not let any later phase assume transient thermal data exists.
+### Group D flags — resolved 2026-09-20
+- 📋 Parallel finalists each re-run the FULL child pipeline (sizing →
+  selection → servo'd SPICE → CHT): 2 workers ≈ 2 CHT solves in parallel.
+  Raising max_workers beyond available cores gains nothing (CHT itself is
+  serial per case) — keep 2-3 in the container.
+- 📋 Phase 21 revisit recipe is written in the goals-doc note
+  (measured_results.json sidecar + comparison module → Phase 19 memory);
+  do not build it speculatively before hardware exists.
+- 📌 Transient thermal stays OUT OF SCOPE (Phase 12 decision) — no later
+  phase may assume transient thermal data exists.

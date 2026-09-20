@@ -62,6 +62,9 @@ Pyspice-Openfoam-agent/
 │   │   ├── graph.py                  #   state graph, ReAct nodes, finalize recording
 │   │   ├── tools.py                  #   9 tools (incl. mitigate_thermal + run_spice
 │   │   │                             #     duty servo), ReAct error contract
+│   │   ├── parallel.py               #   Phase 15: bounded PROCESS pool for independent
+│   │   │                             #     candidate pipelines (threads unsafe: one shared
+│   │   │                             #     ngspice instance per process)
 │   │   └── memory/
 │   │       └── design_memory.py      #   Phase 11a: git-versioned store (atomic writes)
 │   ├── bundle/manifest.py            # Phase 12: output manifest
@@ -85,5 +88,6 @@ Conventions:
 - All Python under `src/` layout (installable via `pip install -e .`).
 - Sim artifacts (runs/) never enter Git; memory_store/ does (it is the long-term memory).
 - Tests carry the phase checkpoints — each phase's "standalone checkpoint" is a test file here.
-- The orchestrator `hitl/` and `parallel/` sub-packages from the original plan were never
-  built and have been removed (empty `__init__.py` placeholders only).
+- The orchestrator `hitl/` sub-package from the original plan was never built and has been
+  removed (Phase 20 is formally descoped in updated_project_goals.md). Phase 15 parallelism
+  lives in `orchestrator/parallel.py` (a module, not the old stub package).
