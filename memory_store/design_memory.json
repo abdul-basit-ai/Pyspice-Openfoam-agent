@@ -5,8 +5,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL5030-222ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL5030-222ME"
           },
           "date": "2026-09-14T21:47:45+00:00",
           "outcome": {
@@ -23,8 +22,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL5030-222ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL5030-222ME"
           },
           "date": "2026-09-14T21:49:45+00:00",
           "outcome": {
@@ -53,8 +51,7 @@
         {
           "best_config": {
             "capacitor": "EEF-CD1E221P",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-14T18:00:57+00:00",
           "outcome": {}
@@ -74,8 +71,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-13T19:49:10+00:00",
           "outcome": {}
@@ -95,8 +91,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-14T21:16:59+00:00",
           "outcome": {
@@ -125,8 +120,7 @@
         {
           "best_config": {
             "capacitor": "10TPB220M",
-            "inductor": "XAL5030-222ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL5030-222ME"
           },
           "date": "2026-09-16T20:49:13+00:00",
           "outcome": {
@@ -162,9 +156,7 @@
       "attempts": [
         {
           "best_config": {
-            "capacitor": "3x GRM31CR61E476ME15",
-            "inductor": "XAL5030-222ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL5030-222ME"
           },
           "date": "2026-09-16T21:34:21+00:00",
           "outcome": {
@@ -201,8 +193,7 @@
         {
           "best_config": {
             "capacitor": "EEF-CD1E221P",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-14T18:29:31+00:00",
           "outcome": {}
@@ -210,8 +201,7 @@
         {
           "best_config": {
             "capacitor": "EEF-CD1E221P",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-14T22:40:48+00:00",
           "outcome": {
@@ -240,8 +230,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-13T15:04:18+00:00",
           "outcome": {}
@@ -249,8 +238,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-13T15:05:14+00:00",
           "outcome": {}
@@ -258,8 +246,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-13T15:35:41+00:00",
           "outcome": {}
@@ -267,8 +254,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-13T19:49:35+00:00",
           "outcome": {}
@@ -276,8 +262,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-13T19:49:53+00:00",
           "outcome": {}
@@ -285,8 +270,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-13T19:56:48+00:00",
           "outcome": {}
@@ -294,8 +278,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-14T14:35:51+00:00",
           "outcome": {}
@@ -303,20 +286,48 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-14T14:40:29+00:00",
           "outcome": {}
+        },
+        {
+          "best_config": {
+            "capacitor": "GRM31CR61E476ME15",
+            "controller": "LM27402MHX",
+            "gate_driver": "LM5107MAX",
+            "inductor": "XAL1510-682ME",
+            "mosfet": "CSD16415Q5"
+          },
+          "date": "2026-09-21T18:47:20+00:00",
+          "outcome": {
+            "case_dir": "/workspace/runs/run_0211a993/thermal_case_1",
+            "converged": true,
+            "tj_max_k": 313.7458,
+            "tj_per_device_C": {
+              "board": 40.47,
+              "hs_mosfet": 36.62,
+              "inductor": 37.14,
+              "ls_mosfet": 40.6
+            },
+            "v_in_m_s": 1.0,
+            "validation": {
+              "energy_balance": "PASS (R_eff = 9.57 K/W, plausible [0.5, 100.0] K/W)",
+              "log_available": "PASS",
+              "nan_residuals": "PASS",
+              "residual_trend": "PASS (h: 6.69e-04 vs 4.82e-03 over last 500 iters)",
+              "tj_bounds": "PASS"
+            }
+          }
         }
       ],
       "spec": {
         "Iout": 5.0,
         "Vin": 12.0,
         "Vout": 5.0,
-        "Vripple": 0.02,
+        "Vripple": 0.05,
         "fsw_khz": 500.0,
-        "ripple_ratio": 0.3
+        "ripple_ratio": 0.25
       }
     },
     "4dc60cd5b371fa87": {
@@ -324,8 +335,7 @@
         {
           "best_config": {
             "capacitor": "EEF-CD1E221P",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-15T11:43:45+00:00",
           "outcome": {
@@ -354,8 +364,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1510-682ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1510-682ME"
           },
           "date": "2026-09-13T15:36:14+00:00",
           "outcome": {}
@@ -363,8 +372,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1510-682ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1510-682ME"
           },
           "date": "2026-09-13T15:36:27+00:00",
           "outcome": {}
@@ -384,8 +392,7 @@
         {
           "best_config": {
             "capacitor": "10TPB220M",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-14T20:23:07+00:00",
           "outcome": {
@@ -414,8 +421,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL5030-222ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL5030-222ME"
           },
           "date": "2026-09-16T21:39:54+00:00",
           "outcome": {
@@ -452,8 +458,7 @@
         {
           "best_config": {
             "capacitor": "10TPB220M",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-14T19:47:00+00:00",
           "outcome": {}
@@ -473,8 +478,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1510-682ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1510-682ME"
           },
           "date": "2026-09-14T18:59:27+00:00",
           "outcome": {
@@ -503,8 +507,7 @@
         {
           "best_config": {
             "capacitor": "EEF-CD1E221P",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-14T18:30:09+00:00",
           "outcome": {}
@@ -524,8 +527,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1510-682ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1510-682ME"
           },
           "date": "2026-09-14T19:36:18+00:00",
           "outcome": {
@@ -554,8 +556,7 @@
         {
           "best_config": {
             "capacitor": "10TPB220M",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-14T21:43:06+00:00",
           "outcome": {
@@ -584,8 +585,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-14T22:33:33+00:00",
           "outcome": {
@@ -614,8 +614,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-15T09:23:46+00:00",
           "outcome": {
@@ -644,8 +643,7 @@
         {
           "best_config": {
             "capacitor": "GRM31CR61E476ME15",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-14T21:31:01+00:00",
           "outcome": {
@@ -673,9 +671,7 @@
       "attempts": [
         {
           "best_config": {
-            "capacitor": "3x GRM31CR61E476ME15",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-16T21:16:15+00:00",
           "outcome": {
@@ -712,8 +708,7 @@
         {
           "best_config": {
             "capacitor": "10TPB220M",
-            "inductor": "XAL1010-472ME",
-            "mosfet": "BSC014N04LS"
+            "inductor": "XAL1010-472ME"
           },
           "date": "2026-09-16T20:32:48+00:00",
           "outcome": {

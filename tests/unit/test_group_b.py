@@ -4,6 +4,7 @@ wiring, Phase 18 provenance logging, Phase 4 Design persistence."""
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -201,3 +202,33 @@ def test_call_openrouter_sends_temperature_and_logs(tmp_path, monkeypatch):
     assert rec["model"] == "test/model" and rec["temperature"] == 0.0
     assert rec["step"] == 3 and rec["usage"]["total_tokens"] == 42
     assert rec["response"]["final"]["summary"] == "done"
+
+
+# ---------------- catalog-consistency filter on memory hits ----------------
+
+def test_memory_hits_filtered_to_current_catalog(tmp_path):
+    """The store outlives library reworks: a remembered best_config naming a
+    part that no longer exists must be filtered before the hit reaches the
+    agent (it previously caused pointless guardrail rejections)."""
+    import tempfile
+
+    from pyspice_openfoam_agent.orchestrator.memory.design_memory import DesignMemory
+    from pyspice_openfoam_agent.orchestrator.tools import dispatch
+
+    store_dir = Path(tempfile.mkdtemp(prefix="mem_filt_"))
+    mem = DesignMemory(store_dir)
+    mem.record_outcome(12, 5, 2, 500, {"Vin": 12},
+                       {"mosfet": "REMOVED-PART", "inductor": "XAL1010-472ME"},
+                       {"tj_max_C": 40.0, "converged": True})
+    # make the store's signature match the tool's computation
+    ctx = ToolContext(run_dir=store_dir, library=load_library())
+    # the store lives in the run dir; point the tool at it via the same dir
+    r = dispatch(ctx, "read_design_memory",
+                 {"Vin": 12, "Vout": 5, "Iout": 2, "fsw_khz": 500})
+    assert r.ok
+    hits = r.payload["hits"]
+    assert hits, "the valid-inductor hit must survive"
+    cfg = hits[0]["best_config"]
+    assert "mosfet" not in cfg  # stale part stripped
+    assert cfg["inductor"] == "XAL1010-472ME"
+    assert "no longer in the catalog" in r.payload.get("note", "")

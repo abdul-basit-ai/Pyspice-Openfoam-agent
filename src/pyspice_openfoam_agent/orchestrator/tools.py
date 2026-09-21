@@ -1617,7 +1617,39 @@ def tool_read_design_memory(ctx: ToolContext, Vin: float, Vout: float, Iout: flo
 
     mem = DesignMemory(ctx.run_dir)
     hits = mem.lookup(Vin, Vout, Iout, fsw_khz)
-    return {"hits": hits, "signature": spec_signature(Vin, Vout, Iout, fsw_khz)}
+
+    # Catalog-consistency filter: the long-term store outlives library
+    # reworks, so a "past best config" can recommend a part that NO LONGER
+    # EXISTS (e.g. pre-rework records naming a removed MOSFET). If the LLM
+    # honors such a hit, the selection guardrail rejects it and the run wears
+    # a caveat for nothing. Filter at the source: keep only parts the current
+    # catalog still carries; drop hits whose config is entirely stale.
+    tables = {
+        "mosfet": ctx.library.mosfets, "inductor": ctx.library.inductors,
+        "capacitor": ctx.library.capacitors,
+        "gate_driver": ctx.library.gate_drivers,
+        "controller": ctx.library.controllers, "diode": ctx.library.diodes,
+    }
+    filtered_hits = []
+    n_stale_parts = 0
+    for hit in hits:
+        cfg = hit.get("best_config") or {}
+        kept = {}
+        for role, pn in cfg.items():
+            table = tables.get(role)
+            if table is None or pn in table:
+                kept[role] = pn
+            else:
+                n_stale_parts += 1
+        if kept:
+            filtered_hits.append({**hit, "best_config": kept})
+        else:
+            n_stale_parts += len(cfg)
+    payload = {"hits": filtered_hits, "signature": spec_signature(Vin, Vout, Iout, fsw_khz)}
+    if n_stale_parts:
+        payload["note"] = (f"{n_stale_parts} remembered part(s) no longer in the "
+                           f"catalog (library rework) — filtered from the hits")
+    return payload
 
 
 # ---------------- dispatch ----------------
