@@ -1,0 +1,1328 @@
+LM5175 4-Switch Buck-Boost Converter High
+Density EVM
+User's Guide
+Literature Number: SNVU439
+March 2015
+Contents
+1 High Density EVM Description ............................................................................................... 6
+1.1 Typical Applications...................................................................................................... 6
+1.2 Features and Electrical Performance.................................................................................. 7
+1.3 Thermal Performance.................................................................................................... 7
+2 Electrical Performance Specifications .................................................................................... 8
+3 Application Circuit Diagram .................................................................................................. 9
+4 EVM Photos ....................................................................................................................... 10
+5 Signal Connections and Test Point Descriptions.................................................................... 11
+5.1 Test Point Descriptions ................................................................................................ 11
+5.2 Signal Connections..................................................................................................... 11
+5.2.1 Input Voltage Monitoring ................................................................................... 11
+5.2.2 Output Voltage Monitoring ................................................................................. 11
+5.2.3 Power Good Voltage Output............................................................................... 11
+5.2.4 Enable Voltage Input ....................................................................................... 11
+5.2.5 SYNC Input .................................................................................................. 11
+6 Test Setup and Procedure ................................................................................................... 12
+6.1 Test Equipment ......................................................................................................... 12
+6.2 Recommended Test Setup ............................................................................................ 13
+6.2.1 Input Connections........................................................................................... 13
+6.2.2 Output Connections......................................................................................... 13
+6.3 Test Procedure.......................................................................................................... 13
+6.3.1 Line, Load Regulation and Efficiency .................................................................... 13
+6.3.2 Control Loop Gain and Phase............................................................................. 13
+7 Test Data and Performance Curves ...................................................................................... 14
+7.1 Efficiency................................................................................................................. 14
+7.2 Load Regulation ........................................................................................................ 15
+7.3 Line Regulation ......................................................................................................... 15
+7.4 Operating Waveforms.................................................................................................. 16
+7.4.1 Switch Node Voltages and Inductor Current ............................................................ 16
+7.4.2 Buck-Leg Switching Waveforms .......................................................................... 20
+7.4.3 Boost-Leg Switching Waveforms ......................................................................... 24
+7.4.4 Output Voltage Ripple, 20-MHz Bandwidth.............................................................. 28
+8 EVM Documentation ........................................................................................................... 31
+8.1 Schematic................................................................................................................ 31
+8.2 PCB Layout.............................................................................................................. 32
+8.3 Bill of Materials.......................................................................................................... 37
+Revision History.......................................................................................................................... 38
+2 Table of Contents SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+www.ti.com
+List of Figures
+1 LM5175 Buck-boost Converter Circuit Diagram ......................................................................... 9
+2 EVM top side................................................................................................................ 10
+3 EVM bottom side ........................................................................................................... 10
+4 Test Setup Connection Diagram ......................................................................................... 12
+5 Efficiency vs. Output Current ............................................................................................. 14
+6 Efficiency vs. Input Voltage ............................................................................................... 14
+7 Load Regulation ............................................................................................................ 15
+8 Line Regulation ............................................................................................................. 15
+9 SW1, SW2, IL Waveforms: VIN = 6 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A.................................... 16
+10 SW1, SW2, IL Waveforms: VIN = 8 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A.................................... 16
+11 SW1, SW2, IL Waveforms: VIN = 10 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A .................................. 17
+12 SW1, SW2, IL Waveforms: VIN = 12 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A .................................. 17
+13 SW1, SW2, IL Waveforms: VIN = 14 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A .................................. 17
+14 SW1, SW2, IL Waveforms: VIN = 16 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A .................................. 18
+15 SW1, SW2, IL Waveforms: VIN = 18 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A .................................. 18
+16 SW1, SW2, IL Waveforms: VIN = 24 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A .................................. 18
+17 SW1, SW2, IL Waveforms: VIN = 36 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A .................................. 19
+18 SW1, SW2, IL Waveforms: VIN = 42 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A .................................. 19
+19 SW1, LO1, (HO1–SW1) Voltages: VIN = 10.5 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON ....................... 20
+20 SW1, LO1, (HO1–SW1) Voltages: VIN = 12 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON ......................... 20
+21 SW1, LO1, (HO1–SW1) Voltages: VIN = 14 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON ......................... 20
+22 SW1, LO1, (HO1–SW1) Voltages: VIN = 16 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON ......................... 21
+23 SW1, LO1, (HO1–SW1) Voltages: VIN = 24 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON ......................... 21
+24 SW1, LO1, (HO1–SW1) Voltages: VIN = 36 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON ......................... 21
+25 SW1, LO1, (HO1–SW1) Voltages: VIN = 42 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON ......................... 22
+26 SW1, LO1, (HO1–SW1) Voltages: VIN = 10.5 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON ....................... 22
+27 SW1, LO1, (HO1–SW1) Voltages: VIN = 12 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON ......................... 22
+28 SW1, LO1, (HO1–SW1) Voltages: VIN = 14 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON ......................... 23
+29 SW1, LO1, (HO1–SW1) Voltages: VIN = 16 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON ......................... 23
+30 SW1, LO1, (HO1–SW1) Voltages: VIN = 24 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON ......................... 23
+31 SW1, LO1, (HO1–SW1) Voltages: VIN = 36 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON ......................... 24
+32 SW1, LO1, (HO1–SW1) Voltages: VIN = 42 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON ......................... 24
+33 SW2, LO2, (HO2–SW2) Voltages: VIN = 6 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON........................... 24
+34 SW2, LO2, (HO2–SW2) Voltages: VIN = 8 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON........................... 25
+35 SW2, LO2, (HO2–SW2) Voltages: VIN = 10 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON ......................... 25
+36 SW2, LO2, (HO2–SW2) Voltages: VIN = 12 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON ......................... 25
+37 SW2, LO2, (HO2–SW2) Voltages: VIN = 14 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON ......................... 26
+38 SW2, LO2, (HO2–SW2) Voltages: VIN = 6 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON........................... 26
+39 SW2, LO2, (HO2–SW2) Voltages: VIN = 8 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON........................... 26
+40 SW2, LO2, (HO2–SW2) Voltages: VIN = 10 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON ......................... 27
+41 SW2, LO2, (HO2–SW2) Voltages: VIN = 12 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON ......................... 27
+42 SW2, LO2, (HO2–SW2) Voltages: VIN = 14 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON ......................... 27
+43 VOUT ripple: VIN = 6 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A ...................................................... 28
+44 VOUT ripple: VIN = 8 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A ...................................................... 28
+45 VOUT ripple: VIN = 12 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A..................................................... 28
+46 VOUT ripple: VIN = 14 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A..................................................... 29
+47 VOUT ripple: VIN = 18 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A..................................................... 29
+3SNVU439 – March 2015 List of Figures
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+www.ti.com
+48 VOUT ripple: VIN = 24 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A..................................................... 29
+49 VOUT ripple: VIN = 36 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A..................................................... 30
+50 VOUT ripple: VIN = 42 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A..................................................... 30
+51 EVM Schematic............................................................................................................. 31
+52 Top Copper (Top view) .................................................................................................... 32
+53 Layer 2 (Top view) ......................................................................................................... 32
+54 Layer 3 (Top view) ......................................................................................................... 33
+55 Layer 4 (Top view) ......................................................................................................... 33
+56 Layer 5 (Top view) ......................................................................................................... 34
+57 Bottom Copper (Bottom view) ............................................................................................ 34
+58 Top Layer Silkscreen (Top view)......................................................................................... 35
+59 Bottom Layer Silkscreen (Bottom view) ................................................................................. 35
+60 Top Assembly............................................................................................................... 36
+61 Bottom Assembly........................................................................................................... 36
+4 List of Figures SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+www.ti.com
+List of Tables
+1 Electrical Performance Specifications..................................................................................... 8
+2 Test Point Descriptions .................................................................................................... 11
+3 Bill of Materials ............................................................................................................. 37
+5SNVU439 – March 2015 List of Tables
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+User's Guide
+SNVU439 – March 2015
+LM5175 High Density Evaluation Module
+The LM5175EVM-HD high density evaluation module (EVM) is a 4-switch synchronous buck-boost DC/DC
+regulator that employs synchronous rectification to achieve high conversion efficiency in a small footprint
+at 72-W output power. It operates over a wide input voltage range of 5.5 V to 42 V providing a fixed 12-V
+output. The output voltage is adjustable using only a single resistor or voltage source, permitting the user
+to customize the output voltage from 0.8 V to 24 V as needed.
+Such user configurability is especially useful when traditional buck or boost DC/DC converters cannot
+meet system requirements for operating input and output voltage ranges, efficiency, power density, or
+volume. More specifically, this LM5175 EVM is ideal for applications where the input voltage is expected
+to vary continuously above, equal to, or below the regulated output voltage setpoint in buck, buck-boost,
+and boost operating modes, respectively.
+The module design uses the LM5175 high performance, synchronous buck-boost controller with current-
+mode PWM control loop and adaptive slope compensation, integrated high- and low-side MOSFET gate
+drivers, cycle-by cycle overcurrent protection, precision enable, and AEC-Q100 automotive grade
+qualification. The EVM's output voltage has better than 1.5% setpoint accuracy. The switching frequency
+is 400 kHz and is synchronizable to a higher frequency if required. Moreover, a dither function provides a
+smoother EMI signature for noise-sensitive applications. Input UVLO protects the module at low input
+voltage conditions, and it is possible to tailor the minimum operating input voltage to the application
+requirements by suitable adjustment of the programmable input UVLO components.
+The LM5175 buck-boost PWM controller is available in HTSSOP-28 PowerPAD™ package to enable high
+power density and superior thermal performance. Please consult the LM5175 datasheet for more details.
+Even though the LM5175 is WEBENCH® Designer enabled, the reader is also encouraged to avail of the
+LM5175 quick-start calculator, particularly for guidance with powertrain and compensation circuit
+component selection.
+spacer to force list of Figures title to next page
+spacer to force list of Figures title to next page
+1 High Density EVM Description
+The LM5175 high density EVM is designed to use a regulated or non-regulated input bus (5.5 V–42 V) to
+produce a tightly regulated output of 12 V at power levels up to 72 W. The output current range is 0 A to 6
+A across the full input voltage operating range. In particular, the converter is rated to accommodate the
+high inductor current when operating in deep boost mode (low input voltage) at full load.
+The EVM is intended to demonstrate the LM5175 PWM controller in a typical battery voltage to fixed 12-V
+bus application while providing a number of test points to evaluate the performance of the LM5175. The
+output voltage is user-adjustable by connecting a resistor from the TRIM terminal to VOUT or GND as
+appropriate. Many of the power train passive components selected in this design are available with AEC-
+Q200 qualification, including ceramic and electrolytic input and output capacitors as well as the current
+sense resistor.
+1.1 Typical Applications
+• Point-of-load synchronous buck-boost regulators
+• High current density modules
+• Communications, cloud, storage
+• Automotive body electronics, infotainment, audio amplification, and start-stop
+• Embedded computing, industrial PC
+6 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+www.ti.com High Density EVM Description
+1.2 Features and Electrical Performance
+• Adjustable output voltage, nominally set to 12 V with 1.5% feedback accuracy
+• Wide input voltage operating range of 5.5 V to 42 V through buck and boost operating modes
+• Ultra-high power conversion efficiency:
+– >98% at 12 V x 6 A output over 8 V to 18 V input range
+– >96% at 12 V x 3 A output over 5.5 V to 24 V input range
+• 50 mm x 43 mm PCB footprint, including high-current input and output connectors and bulk capacitors
+• 400-kHz free-running switching frequency set by resistor
+• Cycle-by-cycle overcurrent protection via shunt resistor current sensing
+• Default forced PWM (CCM) fixed switching operation with option to set diode emulation mode (DCM)
+• User-adjustable soft-start time set to 8 ms
+• Monotonic pre-bias output voltage startup
+• Programmable input UVLO set to turn on and off at 5.5 V and 4.8 V, respectively
+• Current-mode PWM control architecture supporting all-ceramic output capacitor design or
+ceramic/electrolytic implementation
+• Output voltage adjustable from 0.8 V to 24 V using trim resistance or external voltage source
+• Spread spectrum dither option for reduced EMI
+• Power Good indicator
+• Input circuit damping and energy storage provided by bulk electrolytic capacitor
+• Synchronizable to an external clock signal up to 600 kHz
+• Simple access to IC features including PGOOD, ENABLE, TRIM and SYNC
+• Convenient test points for simple, non-invasive measurements of converter performance
+1.3 Thermal Performance
+For an efficient high density buck-boost design, component selection (particularly power MOSFETs and
+inductor) seeks to attain lowest power dissipation, thus maximizing efficiency. In buck or boost modes,
+one low-side power MOSFET is completely off, offsetting the adjacent high-side device that necessarily
+conducts full current. For deep buck or boost operating points, MOSFET selection can tilt towards
+minimizing low-side power loss, thereby reducing that MOSFET's operating TJ.
+In this design, the high-side MOSFETs' drains are attached on three PCB layers with short connections to
+VIN and VOUT power terminals through heat spreading copper planes. The low-side MOSFETs are
+attached to SW nodes copper polygons that are necessarily small to minimize capacitive & radiated EMI
+coupling. Maximizing performance in convective airflow, MOSFETs placed on the top side of the PCB are
+not airflow shadowed by taller profile components, e.g. inductor and electrolytic capacitors. The inductor
+placed on bottom side of the PCB impedes conductive heat transfer to the top, and the inductor inherently
+acts essentially as its own heat sink. If deemed necessary for a higher current design, a PCB layout to
+accommodate larger 5 mm x 6 mm footprint MOSFETs is attained with relatively minor edit to that
+presented here.
+7SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+Electrical Performance Specifications www.ti.com
+2 Electrical Performance Specifications
+Table 1. Electrical Performance Specifications
+Parameter Test Conditions MIN TYP MAX UNITS
+INPUT CHARACTERISTICS
+Non-operating 60
+Input voltage range, VIN V
+Operating 5.5 12 42
+Input voltage turn on, VIN(ON) 5.3 5.55 5.8 V
+Input voltage turn off, VIN(OFF) Set by EN/UVLO resistors 4.6 4.85 5.1 V
+Input voltage hysteresis, VIN(HYS) 0.7 V
+VIN = 5.5 V 13.93 A
+Input current, full load, IIN(MAX)
+(1) IOUT = 6 A
+VIN = 42 V 1.84 A
+VIN = 12 V 20 mA
+Input current, no load, IIN(NL) IOUT = 0 A
+VIN = 24 V 38 mA
+Input current, disabled, IIN(OFF) VEN = 0 V VIN = 12 V 1 mA
+OUTPUT CHARACTERISTICS
+Output voltage, VOUT
+(1) 11.88 12.00 12.12 V
+Output current, IOUT VIN = 5.5 V to 42 V 0 6 A
+Load Regulation IOUT = 0 A to 6 A 0.2%
+Output voltage regulation, ΔVOUT
+Line Regulation VIN = 5.5 V to 42 V 0.2%
+Output voltage ripple, VOUT(AC) IOUT = 3 A VIN = 18 V 10 mVpp
+Output overcurrent protection, IOCP VIN = 18 V 9 11 13 A
+Soft-start time, tSS 8 ms
+SYSTEM CHARACTERISTICS
+Switching frequency (free running), FSW(nom)
+(1) 400 kHz
+Switching frequency range (using SYNC) FSW(nom) 600 kHz
+Dither modulating frequency, FDITHER With Cd = 47 nF installed 10 kHz
+Peak efficiency, ηPK IOUT = 4.5 A VIN = 12 V 98.5%
+VIN = 6 V 94.3%
+VIN = 8 V 96.6%
+Full load efficiency, ηFULL IOUT = 6 A VIN = 12 V 98.4%
+VIN = 24 V 96.8%
+VIN = 42 V 94.5%
+Loop bandwidth, fc 10 kHz
+VIN = 18 V IOUT = 3 A
+Phase margin, φM 55 º
+External bias supply, VBIAS-EXT Connected to BIAS pin 12 36 V
+Ambient temperature, TA -40 25 125 ºC
+LM5175 junction temperature, TJ 125 ºC
+PCB temperature hotspot, TPCB 125 ºC
+(1) The default output voltage and switching frequency are 12 V and 400 kHz, respectively. Efficiency and other parameters will
+change based on chosen output voltage, load current, and frequency.
+8 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+LDRV1
+BIAS
+VCC
+PGND
+LDRV2
+BOOT2
+MODE
+DITH
+RT/SYNC
+SLOPE
+SS
+COMP
+VOSNS
+ISNS(/cb1)
+ISNS(+)
+CSG
+PGOOD
+CS
+VIN
+LM5175
+GND
+VOUT
+HDRV2
+SW2
+BOOT1
+HDRV1
+SW1
+EN
+VIN
+VISNS
+AGND
+FB
+VCC
+VOUT
+VCC
+LDRV2
+HDRV2
+SW2
+VOUT
+VIN
+VIN
+VCC
+www.ti.com Application Circuit Diagram
+3 Application Circuit Diagram
+Figure 1. LM5175 Buck-boost Converter Circuit Diagram
+9SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+EVM Photos www.ti.com
+4 EVM Photos
+Figure 2. EVM top side
+Figure 3. EVM bottom side
+10 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+www.ti.com Signal Connections and Test Point Descriptions
+5 Signal Connections and Test Point Descriptions
+5.1 Test Point Descriptions
+Table 2. Test Point Descriptions
+LABEL DESCRIPTION
+VIN Input voltage positive power and sense connection
+GND Input voltage negative power and sense connection
+VOUT Output voltage positive power and sense connection
+GND Output voltage negative power and sense connection
+AGND Analog GND
+SYNC SYNC input
+EN ENABLE input; tie to GND to disable converter
+PGOOD Power Good output
+5.2 Signal Connections
+5.2.1 Input Voltage Monitoring
+The LM5175EVM-HD provides two solder lug test points for measuring input voltage at the input banana
+connections. This allows the user to measure the actual input voltage without losses from input cables and
+connectors. All input voltage measurements should be made between VIN and GND test points.
+5.2.2 Output Voltage Monitoring
+The LM5175EVM-HD provides two solder lug test points for measuring output voltage at the output
+banana connections. This facilitates measurement of the output voltage without losses related to output
+cables and connectors.
+5.2.3 Power Good Voltage Output
+The LM5175EVM-HD provides a test point for measuring the PGOOD flag voltage. A 20-kΩ pullup
+resistor, Rpg, to VCC is included. For true open-drain operation with no pullup, remove Rpg. One possible
+scenario where a PGOOD pullup is not required involves PGOOD of an upstream converter connected to
+the EN input of a downstream converter to provide sequential startup of multiple regulators.
+5.2.4 Enable Voltage Input
+The LM5175EVM-HD provides a test point for measuring the EN voltage. Shorting this test point to GND
+disables the converter. The EN/UVLO voltage should not exceed the input voltage.
+5.2.5 SYNC Input
+The LM5175EVM-HD provides a test point for applying a synchronization (SYNC) input signal. The free-
+running switching frequency is set at 400 kHz by resistor RT1. However, the converter aligns in frequency
+and phase with that of the applied SYNC signal up to 600 kHz. If required, apply an external SYNC signal
+with maximum ac voltage amplitude of 2 V and pulse width between 75 ns and 500 ns.
+CAUTION
+Some parameters can be configured, such as control loop compensation, to
+values that can result in unexpected behavior of this EVM. Please refer to the
+LM5175 datasheet, LM5175 quick-start tool, or WEBENCH® Power Designer
+for guidance related to component selection.
+11SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+A COM
+Ammeter 1 Electronic Load
++ -
+V
+Voltmeter 1
+COM V
+Voltmeter 2
+COM
+Oscilloscope
++-
+Power Supply
+-s  +s
+Test Setup and Procedure www.ti.com
+6 Test Setup and Procedure
+Figure 4 shows the recommended test setup to evaluate the LM5175EVM-HD. Working at an ESD
+workstation, make sure that any wrist straps, boot straps or mats are connected referencing the user to
+earth ground before power is applied to the EVM.
+Figure 4. Test Setup Connection Diagram
+6.1 Test Equipment
+Voltage Source: The input voltage source VIN should be a 0–50-V variable dc source capable of
+supplying 10 A.
+Multimeters:
+• Voltmeter 1: Input voltage at VIN to GND
+• Voltmeter 2: Output voltage at VOUT to GND
+• Ammeter 1: Input current (or use the power supply readout if its accuracy is deemed acceptable)
+Electronic Load: The output load should be an electronic constant-resistance or constant-current mode
+load capable of 0 Adc to 10 Adc at 12 V.
+Oscilloscope: A digital or analog oscilloscope can be used to measure pertinent converter waveforms.
+With the scope set to 20-MHz bandwidth and AC coupling, the output voltage ripple can be measured
+directly across an output capacitor with a short ground lead normally provided with the scope probe. Place
+the oscilloscope probe tip on the positive terminal of the output capacitor, holding the probe's ground
+barrel through the ground lead to the capacitor's negative terminal. It is not recommended to use a long
+leaded ground connection because this may induce additional noise given a large ground loop. To
+measure other waveforms, adjust the oscilloscope as needed.
+Fan: Depending on the EVM's operating conditions, the temperature rise of certain powertrain
+components can approach 50°C. Although not mandatory, use a small fan capable of 200–400 LFM to
+reduce component temperatures while the EVM is operating. Exercise care when touching the EVM while
+the fan is not running. Always use caution when touching any circuits that may be live or energized.
+12 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+www.ti.com Test Setup and Procedure
+Recommended Wire Gauge:
+• Input Source to VIN and GND: The recommended wire size is 1 × AWG #14 per input connection,
+with the total length of wire less than 4 feet (2 feet input, 2 feet return).
+• VOUT to LOAD: The minimum recommended wire size is 2 × AWG #14, with the total length of wire
+less than 4 feet (2 feet input, 2 feet return).
+6.2 Recommended Test Setup
+6.2.1 Input Connections
+• Prior to connecting the DC input source, it is advisable to limit the source current to 10 A maximum.
+Make sure the input source is initially set to 0 V and connected to VIN and GND banana connections
+as shown in Figure 4. While the on-board hybrid electrolytic capacitor provides input circuit damping,
+an additional high-ESR input capacitor may be required if long input lines are used.
+• Connect voltmeter 1 at VIN and GND test points to measure the input voltage.
+• Connect ammeter 1 to measure the input current.
+6.2.2 Output Connections
+• Connect an electronic load to VOUT and GND connections. Set the load to constant-resistance mode
+or constant-current mode at 0 Adc before applying input voltage. Use short load lines to minimize
+voltage drop to the load.
+• Connect voltmeter 2 at VOUT and GND solder lugs to measure the output voltage.
+• The output current level is taken from the electronic load readout (if its accuracy is deemed
+acceptable).
+6.3 Test Procedure
+6.3.1 Line, Load Regulation and Efficiency
+• Set up the EVM as described above.
+• Set load to constant resistance or constant current mode and to sink 0 Adc.
+• Increase input source from 0 V to 42 V, using voltmeter 1 to measure input voltage.
+• Use voltmeter 2 to measure output voltage, VOUT.
+• Vary load from 0 to 6 Adc, VOUT should remain within load regulation specification.
+• Vary input source voltage from 5.5 V to 42 V, VOUT should remain within line regulation specification.
+• Decrease load to 0 A. Decrease input source voltage to 0 V.
+6.3.2 Control Loop Gain and Phase
+The 10-Ω positive sense resistor of the LM5175EVM-HD is a convenient injection point for loop response
+analysis.
+• Set up EVM as described previously.
+• Connect isolation transformer secondary across R16.
+• Connect output signal amplitude measurement probe (TEST) to VOUT and input signal amplitude
+measurement (REF) probe to opposite side of R16.
+• Connect ground leads to the AGND test point as required.
+• Apply 10 mV or less AC signal to the isolation transformer primary. Adjust amplitude as necessary.
+• Sweep the frequency over the frequency range of interest (e.g. 100 Hz to 100 kHz) with 10 Hz or lower
+post filter.
+• Measure the control loop gain and phase characteristic. Record the crossover frequency and phase
+margin.
+• Disconnect isolation transformer before making other measurements (signal injection into the loop may
+interfere with the integrity of other measurements).
+13SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+Input Voltage (V)
+Efficiency (%)
+5 10 15 20 25 30 35 40
+92
+94
+96
+98
+100
+IOUT = 3A
+IOUT = 6A
+Output Current (A)
+Efficiency (%)
+0 1 2 3 4 5 6
+86
+88
+90
+92
+94
+96
+98
+100
+VIN = 6V
+VIN = 12V
+VIN = 18V
+VIN = 24V
+VIN = 42V
+Test Data and Performance Curves www.ti.com
+7 Test Data and Performance Curves
+Figure 5 through Figure 50 present typical performance curves for the LM5175EVM-HD. Since actual
+performance data can be affected by measurement techniques and environmental variables, these curves
+are presented for reference and may differ from actual field measurements.
+7.1 Efficiency
+Figure 5. Efficiency vs. Output Current
+Figure 6. Efficiency vs. Input Voltage
+14 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+Input Voltage (V)
+Output Voltage (V)
+5 10 15 20 25 30 35 40
+11.9
+11.92
+11.94
+11.96
+11.98
+12
+12.02
+12.04
+12.06
+12.08
+12.1
+Output Current (A)
+Output Voltage (V)
+0 1 2 3 4 5 6
+11.9
+11.92
+11.94
+11.96
+11.98
+12
+12.02
+12.04
+12.06
+12.08
+12.1
+www.ti.com Test Data and Performance Curves
+7.2 Load Regulation
+Figure 7. Load Regulation
+7.3 Line Regulation
+Figure 8. Line Regulation
+15SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+(a) (b)
+(a) (b)
+Test Data and Performance Curves www.ti.com
+7.4 Operating Waveforms
+7.4.1 Switch Node Voltages and Inductor Current
+Figure 9. SW1, SW2, IL Waveforms: VIN = 6 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+Figure 10. SW1, SW2, IL Waveforms: VIN = 8 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+16 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+(a) (b)
+(a) (b)
+(a) (b)
+www.ti.com Test Data and Performance Curves
+Figure 11. SW1, SW2, IL Waveforms: VIN = 10 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+Figure 12. SW1, SW2, IL Waveforms: VIN = 12 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+Figure 13. SW1, SW2, IL Waveforms: VIN = 14 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+17SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+(a) (b)
+(a) (b)
+(a) (b)
+Test Data and Performance Curves www.ti.com
+Figure 14. SW1, SW2, IL Waveforms: VIN = 16 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+Figure 15. SW1, SW2, IL Waveforms: VIN = 18 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+Figure 16. SW1, SW2, IL Waveforms: VIN = 24 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+18 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+(a) (b)
+(a) (b)
+www.ti.com Test Data and Performance Curves
+Figure 17. SW1, SW2, IL Waveforms: VIN = 36 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+Figure 18. SW1, SW2, IL Waveforms: VIN = 42 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+19SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+(a) (b)
+(a) (b)
+(a) (b)
+Test Data and Performance Curves www.ti.com
+7.4.2 Buck-Leg Switching Waveforms
+Figure 19. SW1, LO1, (HO1–SW1) Voltages: VIN = 10.5 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON
+Figure 20. SW1, LO1, (HO1–SW1) Voltages: VIN = 12 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON
+Figure 21. SW1, LO1, (HO1–SW1) Voltages: VIN = 14 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON
+20 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+(a) (b)
+(a) (b)
+(a) (b)
+www.ti.com Test Data and Performance Curves
+Figure 22. SW1, LO1, (HO1–SW1) Voltages: VIN = 16 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON
+Figure 23. SW1, LO1, (HO1–SW1) Voltages: VIN = 24 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON
+Figure 24. SW1, LO1, (HO1–SW1) Voltages: VIN = 36 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON
+21SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+(a) (b)
+(a) (b)
+(a) (b)
+Test Data and Performance Curves www.ti.com
+Figure 25. SW1, LO1, (HO1–SW1) Voltages: VIN = 42 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON
+Figure 26. SW1, LO1, (HO1–SW1) Voltages: VIN = 10.5 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON
+Figure 27. SW1, LO1, (HO1–SW1) Voltages: VIN = 12 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON
+22 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+(a) (b)
+(a) (b)
+(a) (b)
+www.ti.com Test Data and Performance Curves
+Figure 28. SW1, LO1, (HO1–SW1) Voltages: VIN = 14 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON
+Figure 29. SW1, LO1, (HO1–SW1) Voltages: VIN = 16 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON
+Figure 30. SW1, LO1, (HO1–SW1) Voltages: VIN = 24 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON
+23SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+(a) (b)
+SW2LO2
+HO2-SW2
+SW2LO2
+HO2-SW2
+(a) (b)
+(a) (b)
+Test Data and Performance Curves www.ti.com
+Figure 31. SW1, LO1, (HO1–SW1) Voltages: VIN = 36 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON
+Figure 32. SW1, LO1, (HO1–SW1) Voltages: VIN = 42 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON
+7.4.3 Boost-Leg Switching Waveforms
+Figure 33. SW2, LO2, (HO2–SW2) Voltages: VIN = 6 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON
+24 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+(a) (b)
+SW2LO2
+HO2-SW2
+SW2LO2
+HO2-SW2
+(a) (b)
+SW2LO2
+HO2-SW2
+SW2LO2
+HO2-SW2
+(a) (b)
+SW2LO2
+HO2-SW2
+SW2LO2
+HO2-SW2
+www.ti.com Test Data and Performance Curves
+Figure 34. SW2, LO2, (HO2–SW2) Voltages: VIN = 8 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON
+Figure 35. SW2, LO2, (HO2–SW2) Voltages: VIN = 10 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON
+Figure 36. SW2, LO2, (HO2–SW2) Voltages: VIN = 12 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON
+25SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+(a) (b)
+SW2LO2
+HO2-SW2
+SW2LO2
+HO2-SW2
+(a) (b)
+SW2LO2
+HO2-SW2
+SW2LO2
+HO2-SW2
+(a) (b)
+SW2LO2
+HO2-SW2
+SW2LO2
+HO2-SW2
+Test Data and Performance Curves www.ti.com
+Figure 37. SW2, LO2, (HO2–SW2) Voltages: VIN = 14 V, VOUT = 12 V, IOUT = 0 A, (a) OFF, (b) ON
+Figure 38. SW2, LO2, (HO2–SW2) Voltages: VIN = 6 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON
+Figure 39. SW2, LO2, (HO2–SW2) Voltages: VIN = 8 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON
+26 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+(a) (b)
+SW2LO2
+HO2-SW2
+SW2LO2
+HO2-SW2
+(a) (b)
+SW2LO2
+HO2-SW2
+SW2LO2
+HO2-SW2
+(a) (b)
+SW2LO2
+HO2-SW2
+SW2LO2
+HO2-SW2
+www.ti.com Test Data and Performance Curves
+Figure 40. SW2, LO2, (HO2–SW2) Voltages: VIN = 10 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON
+Figure 41. SW2, LO2, (HO2–SW2) Voltages: VIN = 12 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON
+Figure 42. SW2, LO2, (HO2–SW2) Voltages: VIN = 14 V, VOUT = 12 V, IOUT = 6 A, (a) OFF, (b) ON
+27SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+(a) (b)
+VOUT
+VOUT
+(a) (b)
+VOUT
+VOUT
+(a) (b)
+VOUT
+VOUT
+Test Data and Performance Curves www.ti.com
+7.4.4 Output Voltage Ripple, 20-MHz Bandwidth
+Figure 43. VOUT ripple: VIN = 6 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+Figure 44. VOUT ripple: VIN = 8 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+Figure 45. VOUT ripple: VIN = 12 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+28 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+(a) (b)
+VOUT VOUT
+(a) (b)
+VOUT VOUT
+(a) (b)
+VOUT
+VOUT
+www.ti.com Test Data and Performance Curves
+Figure 46. VOUT ripple: VIN = 14 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+Figure 47. VOUT ripple: VIN = 18 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+Figure 48. VOUT ripple: VIN = 24 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+29SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+(a) (b)
+VOUT VOUT
+(a) (b)
+VOUT VOUT
+Test Data and Performance Curves www.ti.com
+Figure 49. VOUT ripple: VIN = 36 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+Figure 50. VOUT ripple: VIN = 42 V, VOUT = 12 V, (a) IOUT = 0 A, (b) IOUT = 6 A
+30 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+GND
+1µF
+Cvcc
+GND
+0.1µF
+Cb1
+0.1µF
+Cb2
+VCC
+VOUT
+L1
+3.3uH
+10.0
+R3
+GND
+60.4k
+RT1
+200k
+R8
+DNP
+R7
+VCC
+10.0
+R6
+200k
+R1
+52.3k
+R2
+10µF
+Co2
+10µF
+Co3
+10µF
+Co4
+10µF
+Cin6
+10µF
+Cin5
+10µF
+Cin4
+GND
+10µF
+Cin368µF
+Cin7
+10µF
+Co1
+GND
+10µF
+Co5
+VOUTSNS0.047µF
+Css
+0
+Cd
+VOUTSNS
+HDRV1
+LDRV2
+SW1
+PGOOD
+BIAS
+BOOT1
+BOOT2
+LDRV1
+VIN 6V TO 42V
+VIN
+VIN_IC
+EN
+VISNS
+MODE
+DITH
+SLOPE
+SS
+COMP
+FB
+GND
+VOUT
+12VDC @ 6A
+GND
+AGND
+100pF
+C1
+220pF
+Cc2
+47pF
+C13
+D1
+BAT54HT1G
+VCC
+10.0
+R4
+20.0k
+Rpg
+0.22µF
+Cbias
+68µF
+Co7
+HDRV2
+SW2
+0
+Rh1
+0
+Rl1
+Rs1
+0.007
+0.22µF
+Cin8
+100pF
+C4
+120pF
+C5
+0.022µF
+Cc1
+3.01k
+Rc
+7.15k
+R10
+100k
+R12
+4
+7,8
+1,2,3
+5,6, QH1
+BSZ042N06NS 4
+7,8
+1,2,3
+5,6,
+QH2
+BSZ0902NS
+4
+7,8
+1,2,3
+5,6, QL1
+BSZ042N06NS 4
+7,8
+1,2,3
+5,6,
+QL2
+BSZ0902NS
+100
+R14
+100
+R13
+100pF
+C11
+100pF
+CT1
+**FOR SPREAD SPECTRUM MODULATION (DITHER), REPLACE Cd WITH 0. 047µF CAPACITOR
+10µF
+Cin2
+10µF
+Cin1
+10µF
+Co6
+GND
+6.65k
+R15
+TRIM
+SYNC
+50
+R16
+LDRV1
+SW1
+LDRV2
+SW1
+LDRV1
+HDRV1
+HDRV1
+HDRV2
+SW2
+HDRV2
+SW2
+LDRV2
+10.0
+R5
+100pF
+C14
+SYNC
+PGOOD
+D2
+BAS516,115
+D3
+BAS516,115
+EN
+GND
+GND
+GND
+GND
+GND
+GND
+EN1
+VIN2
+VINSNS3
+MODE4
+DITH5
+RT/SYNC6
+SLOPE7
+SS8
+COMP9
+AGND10
+FB11
+VOSNS12
+ISNS-13
+ISNS+14
+CSG 15
+CS 16
+PGOOD 17
+SW2 18
+HDRV2 19
+BOOT2 20
+LDRV2 21
+PGND 22
+VCC 23
+BIAS 24
+LDRV1 25
+BOOT1 26
+HDRV1 27
+SW1 28
+PAD
+U1
+LM5175PWP
+**
+www.ti.com EVM Documentation
+8 EVM Documentation
+8.1 Schematic
+Figure 51. EVM Schematic
+31SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+EVM Documentation www.ti.com
+8.2 PCB Layout
+Figure 52 through Figure 61 show the design of the LM5175 6-layer PCB with 2-oz copper thickness. The
+EVM is a two-sided design, and it includes positions for input and output bulk capacitors.
+Figure 52. Top Copper (Top view)
+Figure 53. Layer 2 (Top view)
+32 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+www.ti.com EVM Documentation
+Figure 54. Layer 3 (Top view)
+Figure 55. Layer 4 (Top view)
+33SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+EVM Documentation www.ti.com
+Figure 56. Layer 5 (Top view)
+Figure 57. Bottom Copper (Bottom view)
+34 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+www.ti.com EVM Documentation
+Figure 58. Top Layer Silkscreen (Top view)
+Figure 59. Bottom Layer Silkscreen (Bottom view)
+35SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+EVM Documentation www.ti.com
+Figure 60. Top Assembly
+Figure 61. Bottom Assembly
+36 LM5175 High Density Evaluation Module SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+www.ti.com EVM Documentation
+8.3 Bill of Materials
+Table 3. Bill of Materials
+Count Ref Des Description Part Number MFR
+4 C1, C4, C11, CT1 Capacitor, Ceramic, 100pF, 50V, C0G, 5%, 0603 Std Std
+1 Cc1 Capacitor, Ceramic, 22nF, 25V, X7R, 10%, 0603 Std Std
+1 Cc2 Capacitor, Ceramic, 220pF, 50V, C0G, 5%, 0603 Std Std
+1 Css Capacitor, Ceramic, 33nF, 25V, X7R, 10%, 0603 Std Std
+1 C5 Capacitor, Ceramic, 120pF, 50V, C0G, 5%, 0603 Std Std
+1 C13 Capacitor, Ceramic, 47pF, 50V, C0G, 5%, 0603 Std Std
+1 C14 Capacitor, Ceramic, 2.2nF, 50V, X7R, 10%, 0603 Std Std
+2 Cb1, Cb2 Capacitor, Ceramic, 0.1μF, 25V, X7R, 10%, 0603 Std Std
+2 Cbias, Cin8 Capacitor, Ceramic, 0.22μF, 50V, X7R, 10%, 0603 Std Std
+GRM32EC71H106KA03L Murata
+Capacitor, Ceramic, 10μF, 50V, X7S, 10%, 1210
+CGA6P3X7S1H106K250AE TDKCin1, Cin2, Cin3, Cin4,
+12 Cin5, Cin6, Co1, Co2, C1210C106K5RACTU Kemet
+Co3, Co4, Co5, Co6 Capacitor, Ceramic, 10μF, 50V, X7R, 10%, 1210 GRM32ER71H106KA12L Murata
+UMK325AB7106KM-T Taiyo Yuden
+EEHZC1H680P Pansonic
+2 Cin7, Co7 Capacitor, AL, 68µF, 50V, 20%, 30mΩ, 4000hr
+NSPE-Z680M50V8X10 NIC Components
+1 Cvcc Capacitor, Ceramic, 1μF, 25V, X7R, 10%, 0603 GRM188R71C105KA12D Murata
+1 D1 Diode Schottky, 30V, 200mA, SOD-323 BAT54HT1G On Semi
+2 D2, D3 Diode, 100V, 0.2A, SOD-523 BAS516 NXP
+Inductor, 3.3µH, 5.9mΩ DCR, 22A Isat PIMB135T-3R3MS Cyntec
+1 L1
+Inductor, 3.7µH, 4.9mΩ DCR, 16A Isat 7443551370 Wurth
+2 QH1, QL1 MOSFET, N-Channel, 60V, 40A, PG-TSDSON-8 BSZ042N06NS Infineon
+2 QH2, QL2 MOSFET, N-Channel, 30V, 40A, PG-TSDSON-8 BSZ0902NS Infineon
+2 R1, R8 Resistor, Chip, 200kΩ, 1/10W, 1%, 0603 Std Std
+1 R2 Resistor, Chip, 52.3kΩ, 1/10W, 1%, 0603 Std Std
+5 R3, R4, R5, R6, R16 Resistor, Chip, 10Ω, 1/10W, 1%, 0603 Std Std
+1 R10 Resistor, Chip, 7.15kΩ, 1/10W, 1%, 0603 Std Std
+1 R12 Resistor, Chip, 100kΩ, 1/10W, 1%, 0603 Std Std
+2 R13, R14 Resistor, Chip, 100Ω, 1/10W, 1%, 0603 Std Std
+1 R15 Resistor, Chip, 6.65kΩ, 1/10W, 1%, 0603 Std Std
+1 Rpg Resistor, Chip, 20kΩ, 1/10W, 1%, 0603 Std Std
+1 Rc Resistor, Chip, 3.01kΩ, 1/10W, 1%, 0603 Std Std
+3 Rh1, Rl1, R7 Resistor, Chip, 0Ω, 1/10W, 5%, 0603 Std Std
+KRL6432E-M-R007 Susumu
+1 Rs1 Resistor, 7mΩ, 3W, 1%, 2512 WIDE CSR1225FK07L0 Stackpole
+LRF3WLF-01-R007 TT Electronics
+1 RT1 Resistor, Chip, 60.4kΩ, 1/10W, 1%, 0603 Std Std
+1 U1 IC, Synchronous Buck-Boost Controller, TSSOP-28 LM5175PWP TI
+1 PCB1 PCB, FR4, 6 layer, 2 oz, 50 mm x 43 mm PCB Any
+4 VIN, VOUT, GND, GND Banana Jack Power Terminal with Solder Lug 108-0740-001 Emerson
+4 H3, H4, H7, H8 Screw, Round, #4-40 x 1/4, Nylon, Philips panhead NY PMS 440 0025 PH B&F
+4 H1, H2, H5, H6 Standoff, Hex, 0.5"L #4-40 Nylon 1902C Keystone
+5 AGND, EN, TRIM, Test Point, SMT 5016 KeystonePGOOD, SYNC
+37SNVU439 – March 2015 LM5175 High Density Evaluation Module
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+Revision History www.ti.com
+Revision History
+DATE REVISION NOTES
+March 2015 * Initial release.
+38 Revision History SNVU439 – March 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+STANDARD TERMS AND CONDITIONS FOR EVALUATION MODULES
+1. Delivery: TI delivers TI evaluation boards, kits, or modules, including any accompanying demonstration software, components, or
+documentation (collectively, an “EVM” or “EVMs”) to the User (“User”) in accordance with the terms and conditions set forth herein.
+Acceptance of the EVM is expressly subject to the following terms and conditions.
+1.1 EVMs are intended solely for product or software developers for use in a research and development setting to facilitate feasibility
+evaluation, experimentation, or scientific analysis of TI semiconductors products. EVMs have no direct function and are not
+finished products. EVMs shall not be directly or indirectly assembled as a part or subassembly in any finished product. For
+clarification, any software or software tools provided with the EVM (“Software”) shall not be subject to the terms and conditions
+set forth herein but rather shall be subject to the applicable terms and conditions that accompany such Software
+1.2 EVMs are not intended for consumer or household use. EVMs may not be sold, sublicensed, leased, rented, loaned, assigned,
+or otherwise distributed for commercial purposes by Users, in whole or in part, or used in any finished product or production
+system.
+2 Limited Warranty and Related Remedies/Disclaimers:
+2.1 These terms and conditions do not apply to Software. The warranty, if any, for Software is covered in the applicable Software
+License Agreement.
+2.2 TI warrants that the TI EVM will conform to TI's published specifications for ninety (90) days after the date TI delivers such EVM
+to User. Notwithstanding the foregoing, TI shall not be liable for any defects that are caused by neglect, misuse or mistreatment
+by an entity other than TI, including improper installation or testing, or for any EVMs that have been altered or modified in any
+way by an entity other than TI. Moreover, TI shall not be liable for any defects that result from User's design, specifications or
+instructions for such EVMs. Testing and other quality control techniques are used to the extent TI deems necessary or as
+mandated by government requirements. TI does not test all parameters of each EVM.
+2.3 If any EVM fails to conform to the warranty set forth above, TI's sole liability shall be at its option to repair or replace such EVM,
+or credit User's account for such EVM. TI's liability under this warranty shall be limited to EVMs that are returned during the
+warranty period to the address designated by TI and that are determined by TI not to conform to such warranty. If TI elects to
+repair or replace such EVM, TI shall have a reasonable time to repair such EVM or provide replacements. Repaired EVMs shall
+be warranted for the remainder of the original warranty period. Replaced EVMs shall be warranted for a new full ninety (90) day
+warranty period.
+3 Regulatory Notices:
+3.1 United States
+3.1.1 Notice applicable to EVMs not FCC-Approved:
+This kit is designed to allow product developers to evaluate electronic components, circuitry, or software associated with the kit
+to determine whether to incorporate such items in a finished product and software developers to write software applications for
+use with the end product. This kit is not a finished product and when assembled may not be resold or otherwise marketed unless
+all required FCC equipment authorizations are first obtained. Operation is subject to the condition that this product not cause
+harmful interference to licensed radio stations and that this product accept harmful interference. Unless the assembled kit is
+designed to operate under part 15, part 18 or part 95 of this chapter, the operator of the kit must operate under the authority of
+an FCC license holder or must secure an experimental authorization under part 5 of this chapter.
+3.1.2 For EVMs annotated as FCC – FEDERAL COMMUNICATIONS COMMISSION Part 15 Compliant:
+CAUTION
+This device complies with part 15 of the FCC Rules. Operation is subject to the following two conditions: (1) This device may not
+cause harmful interference, and (2) this device must accept any interference received, including interference that may cause
+undesired operation.
+Changes or modifications not expressly approved by the party responsible for compliance could void the user's authority to
+operate the equipment.
+FCC Interference Statement for Class A EVM devices
+NOTE: This equipment has been tested and found to comply with the limits for a Class A digital device, pursuant to part 15 of
+the FCC Rules. These limits are designed to provide reasonable protection against harmful interference when the equipment is
+operated in a commercial environment. This equipment generates, uses, and can radiate radio frequency energy and, if not
+installed and used in accordance with the instruction manual, may cause harmful interference to radio communications.
+Operation of this equipment in a residential area is likely to cause harmful interference in which case the user will be required to
+correct the interference at his own expense.
+SPACER
+SPACER
+SPACER
+SPACER
+SPACER
+SPACER
+SPACER
+SPACER
+FCC Interference Statement for Class B EVM devices
+NOTE: This equipment has been tested and found to comply with the limits for a Class B digital device, pursuant to part 15 of
+the FCC Rules. These limits are designed to provide reasonable protection against harmful interference in a residential
+installation. This equipment generates, uses and can radiate radio frequency energy and, if not installed and used in accordance
+with the instructions, may cause harmful interference to radio communications. However, there is no guarantee that interference
+will not occur in a particular installation. If this equipment does cause harmful interference to radio or television reception, which
+can be determined by turning the equipment off and on, the user is encouraged to try to correct the interference by one or more
+of the following measures:
+• Reorient or relocate the receiving antenna.
+• Increase the separation between the equipment and receiver.
+• Connect the equipment into an outlet on a circuit different from that to which the receiver is connected.
+• Consult the dealer or an experienced radio/TV technician for help.
+3.2 Canada
+3.2.1 For EVMs issued with an Industry Canada Certificate of Conformance to RSS-210
+Concerning EVMs Including Radio Transmitters:
+This device complies with Industry Canada license-exempt RSS standard(s). Operation is subject to the following two conditions:
+(1) this device may not cause interference, and (2) this device must accept any interference, including interference that may
+cause undesired operation of the device.
+Concernant les EVMs avec appareils radio:
+Le présent appareil est conforme aux CNR d'Industrie Canada applicables aux appareils radio exempts de licence. L'exploitation
+est autorisée aux deux conditions suivantes: (1) l'appareil ne doit pas produire de brouillage, et (2) l'utilisateur de l'appareil doit
+accepter tout brouillage radioélectrique subi, même si le brouillage est susceptible d'en compromettre le fonctionnement.
+Concerning EVMs Including Detachable Antennas:
+Under Industry Canada regulations, this radio transmitter may only operate using an antenna of a type and maximum (or lesser)
+gain approved for the transmitter by Industry Canada. To reduce potential radio interference to other users, the antenna type
+and its gain should be so chosen that the equivalent isotropically radiated power (e.i.r.p.) is not more than that necessary for
+successful communication. This radio transmitter has been approved by Industry Canada to operate with the antenna types
+listed in the user guide with the maximum permissible gain and required antenna impedance for each antenna type indicated.
+Antenna types not included in this list, having a gain greater than the maximum gain indicated for that type, are strictly prohibited
+for use with this device.
+Concernant les EVMs avec antennes détachables
+Conformément à la réglementation d'Industrie Canada, le présent émetteur radio peut fonctionner avec une antenne d'un type et
+d'un gain maximal (ou inférieur) approuvé pour l'émetteur par Industrie Canada. Dans le but de réduire les risques de brouillage
+radioélectrique à l'intention des autres utilisateurs, il faut choisir le type d'antenne et son gain de sorte que la puissance isotrope
+rayonnée équivalente (p.i.r.e.) ne dépasse pas l'intensité nécessaire à l'établissement d'une communication satisfaisante. Le
+présent émetteur radio a été approuvé par Industrie Canada pour fonctionner avec les types d'antenne énumérés dans le
+manuel d’usage et ayant un gain admissible maximal et l'impédance requise pour chaque type d'antenne. Les types d'antenne
+non inclus dans cette liste, ou dont le gain est supérieur au gain maximal indiqué, sont strictement interdits pour l'exploitation de
+l'émetteur
+3.3 Japan
+3.3.1 Notice for EVMs delivered in Japan: Please see http://www.tij.co.jp/lsds/ti_ja/general/eStore/notice_01.page 日本国内に
+輸入される評価用キット、ボードについては、次のところをご覧ください。
+http://www.tij.co.jp/lsds/ti_ja/general/eStore/notice_01.page
+3.3.2 Notice for Users of EVMs Considered “Radio Frequency Products” in Japan: EVMs entering Japan may not be certified
+by TI as conforming to Technical Regulations of Radio Law of Japan.
+If User uses EVMs in Japan, not certified to Technical Regulations of Radio Law of Japan, User is required by Radio Law of
+Japan to follow the instructions below with respect to EVMs:
+1. Use EVMs in a shielded room or any other test facility as defined in the notification #173 issued by Ministry of Internal
+Affairs and Communications on March 28, 2006, based on Sub-section 1.1 of Article 6 of the Ministry’s Rule for
+Enforcement of Radio Law of Japan,
+2. Use EVMs only after User obtains the license of Test Radio Station as provided in Radio Law of Japan with respect to
+EVMs, or
+3. Use of EVMs only after User obtains the Technical Regulations Conformity Certification as provided in Radio Law of Japan
+with respect to EVMs. Also, do not transfer EVMs, unless User gives the same notice above to the transferee. Please note
+that if User does not follow the instructions above, User will be subject to penalties of Radio Law of Japan.
+SPACER
+SPACER
+SPACER
+SPACER
+SPACER
+【無線電波を送信する製品の開発キットをお使いになる際の注意事項】 開発キットの中には技術基準適合証明を受けて
+いないものがあります。 技術適合証明を受けていないもののご使用に際しては、電波法遵守のため、以下のいずれかの
+措置を取っていただく必要がありますのでご注意ください。
+1. 電波法施行規則第6条第1項第1号に基づく平成18年3月28日総務省告示第173号で定められた電波暗室等の試験設備でご使用
+いただく。
+2. 実験局の免許を取得後ご使用いただく。
+3. 技術基準適合証明を取得後ご使用いただく。
+なお、本製品は、上記の「ご使用にあたっての注意」を譲渡先、移転先に通知しない限り、譲渡、移転できないものとします。
+上記を遵守頂けない場合は、電波法の罰則が適用される可能性があることをご留意ください。 日本テキサス・イ
+ンスツルメンツ株式会社
+東京都新宿区西新宿６丁目２４番１号
+西新宿三井ビル
+3.3.3 Notice for EVMs for Power Line Communication: Please see http://www.tij.co.jp/lsds/ti_ja/general/eStore/notice_02.page
+電力線搬送波通信についての開発キットをお使いになる際の注意事項については、次のところをご覧くださ
+い。http://www.tij.co.jp/lsds/ti_ja/general/eStore/notice_02.page
+SPACER
+4 EVM Use Restrictions and Warnings:
+4.1 EVMS ARE NOT FOR USE IN FUNCTIONAL SAFETY AND/OR SAFETY CRITICAL EVALUATIONS, INCLUDING BUT NOT
+LIMITED TO EVALUATIONS OF LIFE SUPPORT APPLICATIONS.
+4.2 User must read and apply the user guide and other available documentation provided by TI regarding the EVM prior to handling
+or using the EVM, including without limitation any warning or restriction notices. The notices contain important safety information
+related to, for example, temperatures and voltages.
+4.3 Safety-Related Warnings and Restrictions:
+4.3.1 User shall operate the EVM within TI’s recommended specifications and environmental considerations stated in the user
+guide, other available documentation provided by TI, and any other applicable requirements and employ reasonable and
+customary safeguards. Exceeding the specified performance ratings and specifications (including but not limited to input
+and output voltage, current, power, and environmental ranges) for the EVM may cause personal injury or death, or
+property damage. If there are questions concerning performance ratings and specifications, User should contact a TI
+field representative prior to connecting interface electronics including input power and intended loads. Any loads applied
+outside of the specified output range may also result in unintended and/or inaccurate operation and/or possible
+permanent damage to the EVM and/or interface electronics. Please consult the EVM user guide prior to connecting any
+load to the EVM output. If there is uncertainty as to the load specification, please contact a TI field representative.
+During normal operation, even with the inputs and outputs kept within the specified allowable ranges, some circuit
+components may have elevated case temperatures. These components include but are not limited to linear regulators,
+switching transistors, pass transistors, current sense resistors, and heat sinks, which can be identified using the
+information in the associated documentation. When working with the EVM, please be aware that the EVM may become
+very warm.
+4.3.2 EVMs are intended solely for use by technically qualified, professional electronics experts who are familiar with the
+dangers and application risks associated with handling electrical mechanical components, systems, and subsystems.
+User assumes all responsibility and liability for proper and safe handling and use of the EVM by User or its employees,
+affiliates, contractors or designees. User assumes all responsibility and liability to ensure that any interfaces (electronic
+and/or mechanical) between the EVM and any human body are designed with suitable isolation and means to safely
+limit accessible leakage currents to minimize the risk of electrical shock hazard. User assumes all responsibility and
+liability for any improper or unsafe handling or use of the EVM by User or its employees, affiliates, contractors or
+designees.
+4.4 User assumes all responsibility and liability to determine whether the EVM is subject to any applicable international, federal,
+state, or local laws and regulations related to User’s handling and use of the EVM and, if applicable, User assumes all
+responsibility and liability for compliance in all respects with such laws and regulations. User assumes all responsibility and
+liability for proper disposal and recycling of the EVM consistent with all applicable international, federal, state, and local
+requirements.
+5. Accuracy of Information: To the extent TI provides information on the availability and function of EVMs, TI attempts to be as accurate
+as possible. However, TI does not warrant the accuracy of EVM descriptions, EVM availability or other information on its websites as
+accurate, complete, reliable, current, or error-free.
+SPACER
+SPACER
+SPACER
+SPACER
+SPACER
+SPACER
+SPACER
+6. Disclaimers:
+6.1 EXCEPT AS SET FORTH ABOVE, EVMS AND ANY WRITTEN DESIGN MATERIALS PROVIDED WITH THE EVM (AND THE
+DESIGN OF THE EVM ITSELF) ARE PROVIDED "AS IS" AND "WITH ALL FAULTS." TI DISCLAIMS ALL OTHER
+WARRANTIES, EXPRESS OR IMPLIED, REGARDING SUCH ITEMS, INCLUDING BUT NOT LIMITED TO ANY IMPLIED
+WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT OF ANY
+THIRD PARTY PATENTS, COPYRIGHTS, TRADE SECRETS OR OTHER INTELLECTUAL PROPERTY RIGHTS.
+6.2 EXCEPT FOR THE LIMITED RIGHT TO USE THE EVM SET FORTH HEREIN, NOTHING IN THESE TERMS AND
+CONDITIONS SHALL BE CONSTRUED AS GRANTING OR CONFERRING ANY RIGHTS BY LICENSE, PATENT, OR ANY
+OTHER INDUSTRIAL OR INTELLECTUAL PROPERTY RIGHT OF TI, ITS SUPPLIERS/LICENSORS OR ANY OTHER THIRD
+PARTY, TO USE THE EVM IN ANY FINISHED END-USER OR READY-TO-USE FINAL PRODUCT, OR FOR ANY
+INVENTION, DISCOVERY OR IMPROVEMENT MADE, CONCEIVED OR ACQUIRED PRIOR TO OR AFTER DELIVERY OF
+THE EVM.
+7. USER'S INDEMNITY OBLIGATIONS AND REPRESENTATIONS. USER WILL DEFEND, INDEMNIFY AND HOLD TI, ITS
+LICENSORS AND THEIR REPRESENTATIVES HARMLESS FROM AND AGAINST ANY AND ALL CLAIMS, DAMAGES, LOSSES,
+EXPENSES, COSTS AND LIABILITIES (COLLECTIVELY, "CLAIMS") ARISING OUT OF OR IN CONNECTION WITH ANY
+HANDLING OR USE OF THE EVM THAT IS NOT IN ACCORDANCE WITH THESE TERMS AND CONDITIONS. THIS OBLIGATION
+SHALL APPLY WHETHER CLAIMS ARISE UNDER STATUTE, REGULATION, OR THE LAW OF TORT, CONTRACT OR ANY
+OTHER LEGAL THEORY, AND EVEN IF THE EVM FAILS TO PERFORM AS DESCRIBED OR EXPECTED.
+8. Limitations on Damages and Liability:
+8.1 General Limitations. IN NO EVENT SHALL TI BE LIABLE FOR ANY SPECIAL, COLLATERAL, INDIRECT, PUNITIVE,
+INCIDENTAL, CONSEQUENTIAL, OR EXEMPLARY DAMAGES IN CONNECTION WITH OR ARISING OUT OF THESE
+TERMS ANDCONDITIONS OR THE USE OF THE EVMS PROVIDED HEREUNDER, REGARDLESS OF WHETHER TI HAS
+BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. EXCLUDED DAMAGES INCLUDE, BUT ARE NOT LIMITED
+TO, COST OF REMOVAL OR REINSTALLATION, ANCILLARY COSTS TO THE PROCUREMENT OF SUBSTITUTE GOODS
+OR SERVICES, RETESTING, OUTSIDE COMPUTER TIME, LABOR COSTS, LOSS OF GOODWILL, LOSS OF PROFITS,
+LOSS OF SAVINGS, LOSS OF USE, LOSS OF DATA, OR BUSINESS INTERRUPTION. NO CLAIM, SUIT OR ACTION SHALL
+BE BROUGHT AGAINST TI MORE THAN ONE YEAR AFTER THE RELATED CAUSE OF ACTION HAS OCCURRED.
+8.2 Specific Limitations. IN NO EVENT SHALL TI'S AGGREGATE LIABILITY FROM ANY WARRANTY OR OTHER OBLIGATION
+ARISING OUT OF OR IN CONNECTION WITH THESE TERMS AND CONDITIONS, OR ANY USE OF ANY TI EVM
+PROVIDED HEREUNDER, EXCEED THE TOTAL AMOUNT PAID TO TI FOR THE PARTICULAR UNITS SOLD UNDER
+THESE TERMS AND CONDITIONS WITH RESPECT TO WHICH LOSSES OR DAMAGES ARE CLAIMED. THE EXISTENCE
+OF MORE THAN ONE CLAIM AGAINST THE PARTICULAR UNITS SOLD TO USER UNDER THESE TERMS AND
+CONDITIONS SHALL NOT ENLARGE OR EXTEND THIS LIMIT.
+9. Return Policy. Except as otherwise provided, TI does not offer any refunds, returns, or exchanges. Furthermore, no return of EVM(s)
+will be accepted if the package has been opened and no return of the EVM(s) will be accepted if they are damaged or otherwise not in
+a resalable condition. If User feels it has been incorrectly charged for the EVM(s) it ordered or that delivery violates the applicable
+order, User should contact TI. All refunds will be made in full within thirty (30) working days from the return of the components(s),
+excluding any postage or packaging costs.
+10. Governing Law: These terms and conditions shall be governed by and interpreted in accordance with the laws of the State of Texas,
+without reference to conflict-of-laws principles. User agrees that non-exclusive jurisdiction for any dispute arising out of or relating to
+these terms and conditions lies within courts located in the State of Texas and consents to venue in Dallas County, Texas.
+Notwithstanding the foregoing, any judgment may be enforced in any United States or foreign court, and TI may seek injunctive relief
+in any United States or foreign court.
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265
+Copyright © 2015, Texas Instruments Incorporated
+spacer
+IMPORTANT NOTICE
+Texas Instruments Incorporated and its subsidiaries (TI) reserve the right to make corrections, enhancements, improvements and other
+changes to its semiconductor products and services per JESD46, latest issue, and to discontinue any product or service per JESD48, latest
+issue. Buyers should obtain the latest relevant information before placing orders and should verify that such information is current and
+complete. All semiconductor products (also referred to herein as “components”) are sold subject to TI’s terms and conditions of sale
+supplied at the time of order acknowledgment.
+TI warrants performance of its components to the specifications applicable at the time of sale, in accordance with the warranty in TI’s terms
+and conditions of sale of semiconductor products. Testing and other quality control techniques are used to the extent TI deems necessary
+to support this warranty. Except where mandated by applicable law, testing of all parameters of each component is not necessarily
+performed.
+TI assumes no liability for applications assistance or the design of Buyers’products. Buyers are responsible for their products and
+applications using TI components. To minimize the risks associated with Buyers’products and applications, Buyers should provide
+adequate design and operating safeguards.
+TI does not warrant or represent that any license, either express or implied, is granted under any patent right, copyright, mask work right, or
+other intellectual property right relating to any combination, machine, or process in which TI components or services are used. Information
+published by TI regarding third-party products or services does not constitute a license to use such products or services or a warranty or
+endorsement thereof. Use of such information may require a license from a third party under the patents or other intellectual property of the
+third party, or a license from TI under the patents or other intellectual property of TI.
+Reproduction of significant portions of TI information in TI data books or data sheets is permissible only if reproduction is without alteration
+and is accompanied by all associated warranties, conditions, limitations, and notices. TI is not responsible or liable for such altered
+documentation. Information of third parties may be subject to additional restrictions.
+Resale of TI components or services with statements different from or beyond the parameters stated by TI for that component or service
+voids all express and any implied warranties for the associated TI component or service and is an unfair and deceptive business practice.
+TI is not responsible or liable for any such statements.
+Buyer acknowledges and agrees that it is solely responsible for compliance with all legal, regulatory and safety-related requirements
+concerning its products, and any use of TI components in its applications, notwithstanding any applications-related information or support
+that may be provided by TI. Buyer represents and agrees that it has all the necessary expertise to create and implement safeguards which
+anticipate dangerous consequences of failures, monitor failures and their consequences, lessen the likelihood of failures that might cause
+harm and take appropriate remedial actions. Buyer will fully indemnify TI and its representatives against any damages arising out of the use
+of any TI components in safety-critical applications.
+In some cases, TI components may be promoted specifically to facilitate safety-related applications. With such components, TI’s goal is to
+help enable customers to design and create their own end-product solutions that meet applicable functional safety standards and
+requirements. Nonetheless, such components are subject to these terms.
+No TI components are authorized for use in FDA Class III (or similar life-critical medical equipment) unless authorized officers of the parties
+have executed a special agreement specifically governing such use.
+Only those TI components which TI has specifically designated as military grade or “enhanced plastic” are designed and intended for use in
+military/aerospace applications or environments. Buyer acknowledges and agrees that any military or aerospace use of TI components
+which have not been so designated is solely at the Buyer's risk, and that Buyer is solely responsible for compliance with all legal and
+regulatory requirements in connection with such use.
+TI has specifically designated certain components as meeting ISO/TS16949 requirements, mainly for automotive use. In any case of use of
+non-designated products, TI will not be responsible for any failure to meet ISO/TS16949.
+Products Applications
+Audio www.ti.com/audio Automotive and Transportation www.ti.com/automotive
+Amplifiers amplifier.ti.com Communications and Telecom www.ti.com/communications
+Data Converters dataconverter.ti.com Computers and Peripherals www.ti.com/computers
+DLP® Products www.dlp.com Consumer Electronics www.ti.com/consumer-apps
+DSP dsp.ti.com Energy and Lighting www.ti.com/energy
+Clocks and Timers www.ti.com/clocks Industrial www.ti.com/industrial
+Interface interface.ti.com Medical www.ti.com/medical
+Logic logic.ti.com Security www.ti.com/security
+Power Mgmt power.ti.com Space, Avionics and Defense www.ti.com/space-avionics-defense
+Microcontrollers microcontroller.ti.com Video and Imaging www.ti.com/video
+RFID www.ti-rfid.com
+OMAP Applications Processors www.ti.com/omap TI E2E Community e2e.ti.com
+Wireless Connectivity www.ti.com/wirelessconnectivity
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265
+Copyright © 2015, Texas Instruments Incorporated

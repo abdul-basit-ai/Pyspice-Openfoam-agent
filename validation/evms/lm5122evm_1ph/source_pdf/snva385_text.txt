@@ -1,0 +1,403 @@
+User's Guide
+SNVA385I–January 2009–Revised May 2013
+AN-1935 LM3445 Off-Line TRIAC Dimmer LED Driver
+Demo Board
+1 Introduction
+The demonstration board included in this shipment converts 90VAC to 135VAC input, and drives seven, or
+eight series connected LED’s at 350 mA average current. The LM3445 switching frequency is set at a
+nominal 225 kHz. This is a four-layer board using the bottom and top layer for component placement. The
+demonstration board can be modified to adjust the LED forward current, the number of series connected
+LEDs and switching frequency.
+A bill of materials below describes the parts used on this demonstration board. A schematic and layout
+have also been included below along with measured performance characteristics. The above restrictions
+for the input voltage are valid only for the demonstration board as shipped with the schematic below.
+Please refer to the LM3445 Triac Dimmable Offline LED Driver (SNVS570 data sheet for detailed
+information regarding the LM3445 device, and the application circuit
+2 Operating Conditions
+VIN = 90VAC to 135VAC
+Seven or eight series connected LEDs
+ILED = 350 mA
+All trademarks are the property of their respective owners.
+1SNVA385I–January 2009–Revised May 2013 AN-1935 LM3445 Off-Line TRIAC Dimmer LED Driver Demo Board
+Submit Documentation Feedback
+Copyright © 2009–2013, Texas Instruments Incorporated
+ICOLL
+V+
+BR1
+VAC
+TRIAC 
+DIMMER
++
++
+1
+2
+3
+4
+5 6
+7
+8
+9
+10
+-
+VLED
+GND
+VCC
+FLTR2
+ASNS
+FLTR1
+ISNS
+GATE
+BLDR
+COFF
+DIM
+LM3445
+VLED-
+D3
+C7
+C9
+C10
+D4
+D8
+D9
+R2
+D1
+Q1
+C5
+R5
+C12
+D2
+D10
+Q2
+L2
+Q3
+R3
+R4
+C11
+C4
+C3
+R1
+U1
+VBUCK
+Simplified LM3445 Schematic and Efficiency Plot www.ti.com
+3 Simplified LM3445 Schematic and Efficiency Plot
+Figure 1. Simplified LM3445 Schematic
+2 AN-1935 LM3445 Off-Line TRIAC Dimmer LED Driver Demo Board SNVA385I–January 2009–Revised May 2013
+Submit Documentation Feedback
+Copyright © 2009–2013, Texas Instruments Incorporated
+80 90 100 110 120 130 140
+12 series connected 
+LEDs @ 350 mA
+8 series connected 
+LEDs @ 350 mA
+EFFICIENCY (%)
+95.0
+90.0
+85.0
+80.0
+75.0
+LINE VOLTAGE (VAC)
+www.ti.com Simplified LM3445 Schematic and Efficiency Plot
+Figure 2. Efficiency Plot
+WARNING
+The LM3445 evaluation boards have no isolation or any type of
+protection from shock. Caution must be taken when handling
+evaluation board. Avoid touching evaluation board, and removing
+any cables while evaluation board is operating. Isolating the
+evaluation board rather than the oscilloscope is highly
+recommended.
+3SNVA385I–January 2009–Revised May 2013 AN-1935 LM3445 Off-Line TRIAC Dimmer LED Driver Demo Board
+Submit Documentation Feedback
+Copyright © 2009–2013, Texas Instruments Incorporated
+80 90 100 110 120 130 140
+12 series connected 
+LEDs @ 350 mA
+8 series connected 
+LEDs @ 350 mA
+EFFICIENCY (%)
+95.0
+90.0
+85.0
+80.0
+75.0
+LINE VOLTAGE (VAC)
+1
+4
+3
+2
+10
+7
+8
+9
+ISNS
+FLTR1
+GATE
+BLDR
+COFF
+VCC
+ASNS
+DIM
+5 6FLTR2 GND
+Pin-Out www.ti.com
+4 Pin-Out
+Figure 3. 10-Pin VSSOP
+Table 1. Pin Description 10 Pin VSSOP
+Pin # Name Description
+1 ASNS PWM output of the triac dim decoder circuit. Outputs a 0 to 4V PWM signal with a duty cycle proportional to
+the triac dimmer on-time.
+2 FLTR1 First filter input. The 120Hz PWM signal from ASNS is filtered to a DC signal and compared to a 1 to 3V,
+5.85 kHz ramp to generate a higher frequency PWM signal with a duty cycle proportional to the triac
+dimmer firing angle. Pull above 4.9V (typical) to tri-state DIM.
+3 DIM Input/output dual function dim pin. This pin can be driven with an external PWM signal to dim the LEDs. It
+may also be used as an output signal and connected to the DIM pin of other LM3445 or LED drivers to dim
+multiple LED circuits simultaneously.
+4 COFF OFF time setting pin. A user set current and capacitor connected from the output to this pin sets the
+constant OFF time of the switching controller.
+5 FLTR2 Second filter input. A capacitor tied to this pin filters the PWM dimming signal to supply a DC voltage to
+control the LED current. Could also be used as an analog dimming input.
+6 GND Circuit ground connection.
+7 ISNS LED current sense pin. Connect a resistor from main switching MOSFET source, ISNS to GND to set the
+maximum LED current.
+8 GATE Power MOSFET driver pin. This output provides the gate drive for the power switching MOSFET of the
+buck controller.
+9 VCC Input voltage pin. This pin provides the power for the internal control circuitry and gate driver.
+10 BLDR Bleeder pin. Provides the input signal to the angle detect circuitry as well as a current path through a
+switched 230Ω resistor to ensure proper firing of the triac dimmer.
+Figure 4. LM3445 Efficiency vs Input Voltage
+8 and 12 Series connected LEDs @ 350 mA
+4 AN-1935 LM3445 Off-Line TRIAC Dimmer LED Driver Demo Board SNVA385I–January 2009–Revised May 2013
+Submit Documentation Feedback
+Copyright © 2009–2013, Texas Instruments Incorporated
+L2
+R3
+C11
+ICOLL
+V+
+BR1
+TRIAC 
+DIMMER
++
++
+1
+2
+3
+4
+5 6
+7
+8
+9
+10
+-
+VLED
+R4
+GND
+VCC
+FLTR2
+ASNS
+FLTR1
+ISNS
+GATE
+BLDR
+COFF
+DIM
+LM3445
+VLED-
+D10
+C7
+C9D4
+D8
+V+C1
+C2
+F1
+D1
+D2
+D9
+R2
+Q1
+R5 C5
+R8
+R6
+R7
+C12
+C4
+C3
+R1
+R12 R13
+C14
+C13
+Q5
+D11
+C10
+RT1
+R10
+R11
+R14
+J1
+VBUCK
+Master-Slave Circuitry
+L1
+C15L3
+L4
+TP3
+TP10
+TP11
+TP12
+D12
+TP14
+TP15
+TP16
+TP5
+LED-
+L5
+TP4
+LED+
+TP7-9
+TP18 TP19
+TP17
+TP6
+VAC
+R16C17
+R15C16
+R17
+C18
+= Possible No Load or Short
+Q3
+Q2
+D3
+U1
+www.ti.com LM3445 Evaluation Board Schematic
+5 LM3445 Evaluation Board Schematic
+5SNVA385I–January 2009–Revised May 2013 AN-1935 LM3445 Off-Line TRIAC Dimmer LED Driver Demo Board
+Submit Documentation Feedback
+Copyright © 2009–2013, Texas Instruments Incorporated
+LM3445 Evaluation Board Schematic www.ti.com
+Table 2. Bill of Materials LM3445 Evaluation Board
+REF DES Description MFG MFG Part Number
+U1 IC, CTRLR, DRVR-LED, VSSOP10 TI LM3445
+BR1 Bridge Rectifier, SMT, 400V, 800 mA Diodes Inc HD04-T
+L1 (no load, short pad) Common mode filter DIP4NS, 900 mA, 700 µH Panasonic ELF11M090E
+L2 Inductor, SHLD, SMT, 1A, 470 µH Coilcraft MSS1260-474KLB
+L3 Diff mode inductor, 500 mA 1 mH Coilcraft MSS1260-105KL-KLB
+L4 (no Load, short pad) Diff mode inductor, 500 mA 1 mH Coilcraft MSS1260-105KL-KLB
+L5 Bead Inductor, 160Ω, 6A Steward HI1206T161R-10
+C1, C2 Cap, Film, X2Y2, 12.5MM, 250VAC, 20%, 10nF Panasonic B32921C3103M(K)
+C3 Cap, X7R, 0603, 16V, 10%, 470 nF MuRata GRM188R71C474KA88D
+C4 Cap, X7R, 0603, 16V, 10%, 100 nF MuRata GRM188R71C104KA01D
+C5, C6 Cap, X5R, 1210, 25V, 10%, 22 µF MuRata GRM32ER61E226KE15L
+C7, C9 Cap, AL, 200V, 105C, 20%, 33 µF UCC EKXG201ELL330MK20S
+C10 Cap, Film, 250V, 5%, 10 nF Epcos B32521C3103J
+C12 Cap, X7R, 1206, 50V, 10%, 1.0 µF MuRata C1206F105K5RACTU
+C11 Cap, C0G, 0603, 100V, 5%, 120 pF MuRata GRM1885C2A121JA01D
+C13 Cap, X7R, 0603, 50V, 10%, 1.0 nF Kemet C0603C102K5RACTU
+C14 Cap, X7R, 0603, 50V, 10%, 22 nF Kemet C0603C223K5RACTU
+C15 (no load) Cap, Film, X2Y2, 12.5MM, 250VAC, 20%, 10nF Panasonic B32921C3103M(K)
+C16, C17 Cap, X7R, 1206, 250V, 10%, 0.047 µF TDK C3216X7R2E473K
+C18 (no load) Cap, X7R, 0603, 50V, 10%, 1.0 nF Kemet C0603C102K5RACTU
+D1 Diode, ZNR, SOT23, 15V, 5% On Semi BZX84C15LT1G
+D2, D3, D4, D8, D9 Diode, FR, SOD123, 200V, 1A Rohm RF071M2S
+D10 Diode, FR, SMB, 400V, 1A On Semi MURS140T3G
+D11 IC, SHNT, ADJ, SOT23, 2.5V, 0.5% TI TL431BIDBZR
+D12 (No Load) TVS Littelfuse
+D13 Diode, SCH, SOD123, 40V, 120 mA NXP BAS40H
+R1 Resistor, 0603, 1%, 280 kΩ Panasonic ERJ-3EKF2803V
+R2 Resistor, 1206, 1%, 100 kΩ Panasonic ERJ-8ENF1003V
+R3 Resistor, 1210, 5%, 1.8Ω Panasonic ERJ-14RQJ1R8U
+R4 Resistor, 0603, 1%, 576 kΩ Panasonic ERJ-3EKF5763V
+R5 Resistor, 1206, 1%, 1.00 kΩ Panasonic ERJ-8ENF1001V
+R6, R7 Resistor, 0805, 1%, 1.00 MΩ Rohm MCR10EZHF1004
+R8, R10, R17, R18, R19, Resistor, 1206, 0.0Ω Yageo RC1206JR-070RL
+R21
+R20 (No Load) Resistor, 1206, 0.0Ω
+R9 Resistor, 1210, 0.0Ω Vishay CRCW12100000Z0EA
+R11 Resistor, 0603, 0.0Ω Yageo RC0603JR-070RL
+R12 Resistor, 0603, 1%, 33.2kΩ Panasonic ERJ-3EKF3322V
+R13 Resistor, 0603, 1%, 2.0kΩ Panasonic ERJ-3EKF2001V
+R14 Resistor, 0805, 1%, 3.3 MΩ Rohm MCR10EZPJ335
+R15, R16 Resistor, 2210, 820Ω Vishay CRCW2010820RJNEF
+RT1 Thermistor, 120V, 1.1A, 50Ω @ 25C CL-140 KC014L-ND
+Q1, Q2 XSTR, NFET, DPAK, 300V, 4A Fairchild FQD7N30TF
+Q3 XSTR, PNP, SOT23, 300V, 500 mA Fairchild MMBTA92
+Q5 XSTR, NFET, SOT23, 100V, 170 mA Fairchild BSS123
+J1 Terminal Block 2 pos Phoenix Contact 1715721
+F1 Fuse, 125V, 1,25A bel SSQ 1.25
+6 AN-1935 LM3445 Off-Line TRIAC Dimmer LED Driver Demo Board SNVA385I–January 2009–Revised May 2013
+Submit Documentation Feedback
+Copyright © 2009–2013, Texas Instruments Incorporated
+www.ti.com PCB Layout
+LM3445 Loads and No Load components: This LM3445 evaluation PCB has been built to allow the end
+user to add or delete EMI circuitry, and an input over-voltage TVS. The input common mode choke (L1),
+both differential chokes (L3 and L4) solder pads are created so that 0 ohm 1206 resistors (R18, R19, R20,
+and R21) can short the components circuit path if necessary.
+6 PCB Layout
+Figure 5. Top Layer
+Figure 6. Bottom Layer
+7SNVA385I–January 2009–Revised May 2013 AN-1935 LM3445 Off-Line TRIAC Dimmer LED Driver Demo Board
+Submit Documentation Feedback
+Copyright © 2009–2013, Texas Instruments Incorporated
+PCB Layout www.ti.com
+WARNING
+The LM3445 evaluation boards have no isolation or any type of
+protection from shock. Caution must be taken when handling
+evaluation board. Avoid touching evaluation board, and removing
+any cables while evaluation board is operating. Isolating the
+evaluation board rather than the oscilloscope is highly
+recommended.
+8 AN-1935 LM3445 Off-Line TRIAC Dimmer LED Driver Demo Board SNVA385I–January 2009–Revised May 2013
+Submit Documentation Feedback
+Copyright © 2009–2013, Texas Instruments Incorporated
+IMPORTANT NOTICE
+Texas Instruments Incorporated and its subsidiaries (TI) reserve the right to make corrections, enhancements, improvements and other
+changes to its semiconductor products and services per JESD46, latest issue, and to discontinue any product or service per JESD48, latest
+issue. Buyers should obtain the latest relevant information before placing orders and should verify that such information is current and
+complete. All semiconductor products (also referred to herein as “components”) are sold subject to TI’s terms and conditions of sale
+supplied at the time of order acknowledgment.
+TI warrants performance of its components to the specifications applicable at the time of sale, in accordance with the warranty in TI’s terms
+and conditions of sale of semiconductor products. Testing and other quality control techniques are used to the extent TI deems necessary
+to support this warranty. Except where mandated by applicable law, testing of all parameters of each component is not necessarily
+performed.
+TI assumes no liability for applications assistance or the design of Buyers’products. Buyers are responsible for their products and
+applications using TI components. To minimize the risks associated with Buyers’products and applications, Buyers should provide
+adequate design and operating safeguards.
+TI does not warrant or represent that any license, either express or implied, is granted under any patent right, copyright, mask work right, or
+other intellectual property right relating to any combination, machine, or process in which TI components or services are used. Information
+published by TI regarding third-party products or services does not constitute a license to use such products or services or a warranty or
+endorsement thereof. Use of such information may require a license from a third party under the patents or other intellectual property of the
+third party, or a license from TI under the patents or other intellectual property of TI.
+Reproduction of significant portions of TI information in TI data books or data sheets is permissible only if reproduction is without alteration
+and is accompanied by all associated warranties, conditions, limitations, and notices. TI is not responsible or liable for such altered
+documentation. Information of third parties may be subject to additional restrictions.
+Resale of TI components or services with statements different from or beyond the parameters stated by TI for that component or service
+voids all express and any implied warranties for the associated TI component or service and is an unfair and deceptive business practice.
+TI is not responsible or liable for any such statements.
+Buyer acknowledges and agrees that it is solely responsible for compliance with all legal, regulatory and safety-related requirements
+concerning its products, and any use of TI components in its applications, notwithstanding any applications-related information or support
+that may be provided by TI. Buyer represents and agrees that it has all the necessary expertise to create and implement safeguards which
+anticipate dangerous consequences of failures, monitor failures and their consequences, lessen the likelihood of failures that might cause
+harm and take appropriate remedial actions. Buyer will fully indemnify TI and its representatives against any damages arising out of the use
+of any TI components in safety-critical applications.
+In some cases, TI components may be promoted specifically to facilitate safety-related applications. With such components, TI’s goal is to
+help enable customers to design and create their own end-product solutions that meet applicable functional safety standards and
+requirements. Nonetheless, such components are subject to these terms.
+No TI components are authorized for use in FDA Class III (or similar life-critical medical equipment) unless authorized officers of the parties
+have executed a special agreement specifically governing such use.
+Only those TI components which TI has specifically designated as military grade or “enhanced plastic”are designed and intended for use in
+military/aerospace applications or environments. Buyer acknowledges and agrees that any military or aerospace use of TI components
+which have not been so designated is solely at the Buyer's risk, and that Buyer is solely responsible for compliance with all legal and
+regulatory requirements in connection with such use.
+TI has specifically designated certain components as meeting ISO/TS16949 requirements, mainly for automotive use. In any case of use of
+non-designated products, TI will not be responsible for any failure to meet ISO/TS16949.
+Products Applications
+Audio www.ti.com/audio Automotive and Transportation www.ti.com/automotive
+Amplifiers amplifier.ti.com Communications and Telecom www.ti.com/communications
+Data Converters dataconverter.ti.com Computers and Peripherals www.ti.com/computers
+DLP® Products www.dlp.com Consumer Electronics www.ti.com/consumer-apps
+DSP dsp.ti.com Energy and Lighting www.ti.com/energy
+Clocks and Timers www.ti.com/clocks Industrial www.ti.com/industrial
+Interface interface.ti.com Medical www.ti.com/medical
+Logic logic.ti.com Security www.ti.com/security
+Power Mgmt power.ti.com Space, Avionics and Defense www.ti.com/space-avionics-defense
+Microcontrollers microcontroller.ti.com Video and Imaging www.ti.com/video
+RFID www.ti-rfid.com
+OMAP Applications Processors www.ti.com/omap TI E2E Community e2e.ti.com
+Wireless Connectivity www.ti.com/wirelessconnectivity
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265
+Copyright © 2013, Texas Instruments Incorporated

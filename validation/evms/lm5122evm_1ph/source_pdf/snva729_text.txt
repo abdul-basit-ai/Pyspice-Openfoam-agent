@@ -1,0 +1,434 @@
+Application Report
+SNVA729A – March 2015 – Revised September 2015
+Layout Considerations for LMG5200 GaN Power Stage
+Narendra Mehta
+ABSTRACT
+Gallium Nitride (GaN) based power FETs are finding increasing use in high efficiency power converters.
+GaN FETs provide zero reverse recovery charge (Qrr) and very low gate charge. These features result in
+very high switching performance. Voltage slew rates on the order of 50 V/ns or higher for GaN FETs is
+common.
+Contents
+1 Introduction ................................................................................................................... 2
+2 LMG5200 Power Stage Layout ............................................................................................ 2
+3 Fundamental of Board Level Parasitics .................................................................................. 8
+4 Conclusion .................................................................................................................. 10
+5 References .................................................................................................................. 10
+List of Figures
+1 Buck Converter Application Using the LMG5200 Power Stage ....................................................... 2
+2 Board Layout ................................................................................................................. 3
+3 Cross-Section of the LMG5200 PCB Layout............................................................................. 4
+4 Power Stage Schematic .................................................................................................... 5
+5 Placement of Components ................................................................................................. 6
+6 Top Layer ..................................................................................................................... 6
+7 Ground Plane................................................................................................................. 6
+8 Middle Layer.................................................................................................................. 6
+9 Bottom Layer ................................................................................................................. 6
+10 Switch Node Waveforms.................................................................................................... 7
+11 With No Airflow, 2-W Dissipation .......................................................................................... 8
+12 WIth Airflow, 2-W Dissipation .............................................................................................. 8
+13 Via Dimensions .............................................................................................................. 9
+14 Inductance Dimensions .................................................................................................... 9
+All trademarks are the property of their respective owners.
+1SNVA729A – March 2015 – Revised September 2015 Layout Considerations for LMG5200 GaN Power Stage
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+SW
+PGND
+VIN
+HI
+LI
+HS HB
+VCC AGND
+LMG5200
+PWM 
+Controller
+VOUT
+5-V VIN
+Introduction www.ti.com
+1 Introduction
+Gallium Nitride (GaN) based power FETs are finding increasing use in high-efficiency power converters.
+GaN FETs provide zero reverse recovery charge (Qrr) and very low gate charge. These features result in
+very high switching performance. Voltage slew rates on the order of 50 V/ns or higher for GaN FETs is
+common. [1]
+Such high switching speeds causes a very significant increase in the rate of current commutation
+compared to conventional silicon power FETs. Special considerations during package design of LMG5200
+power stage ensures that the common source inductance, gate loop inductance and power loop
+inductance can be significantly reduced.
+To achieve optimum performance, it is critical to use an appropriate layout of external components when
+designing with the LMG5200 power stage. The proper placement of capacitors provides high-frequency
+decoupling for the gate driver and bootstrap input capacitors is critical to ensure that there is no loss of
+gate drive during high-voltage switching and current commutation.
+It is critical that the board has the lowest thermal resistance possible between the LMG5200 power stage
+and the ambient temperature and under worst case operating conditions the system does not overheat
+and cause catastrophic failures. This application report provides guidelines for a multilayer board design to
+ensure that the maximum benefit of an integrated gate driver and GaN FET half bridge module is obtained
+both thermally and electrically.
+This application report is divided into two sections, the first section is specific to a DC-DC converter layout
+for the LMG5200 power stage. The first section covers both the electrical and thermal considerations
+required to ensure that maximum performance from the switch mode supply could be observed. While this
+application report uses a buck power stage as an example, the principle can be extended to any DC-DC
+converter as long as the critical loops are identified.
+The second section covers the fundamentals of layout and delves into non-idealities for components used
+in power converters. The second section provides the physics behind why the proposed layout practices
+are observed for LMG5200-based converters.
+2 LMG5200 Power Stage Layout
+To understand the impact of board level parasitics on the performance of the LMG5200 power stage, the
+various key loops are identified in Figure 1. High power loop inductance (shown in red) causes significant
+overshoot on the switch node. The overshoot causes a loss of efficiency due to increased switching
+losses. To minimize this loop inductance, it is critical to use the layout techniques described here to
+effectively eliminate the parasitic loop inductance.
+Figure 1. Buck Converter Application Using the LMG5200 Power Stage
+2 Layout Considerations for LMG5200 GaN Power Stage SNVA729A – March 2015 – Revised September 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+VIN
+PGND
+SW
+VIN
+PGND
+SWVCC AGND
+HI
+LI
+HS HB
+PGND
+VIN Capacitors
+LMG5200
+Metal underneath solder mask
+Metal  1
+Metal  2 (PGND)
+Legend
+Vias
+www.ti.com LMG5200 Power Stage Layout
+The addition of parasitic switch node capacitance is also a switching loss mechanism as the parasitic
+capacitor is charged and discharged with each switching cycle to the switch node voltage. Minimize the
+switch-node capacitance by reducing the overlap between the switch-node plane and the ground and VIN
+planes. To minimize the added switch node capacitance it is recommended that there be a cutout for the
+switch node in the metal 2 plane and possibly the subsequent layers as well. In addition, sensitive control
+and analog signals should be kept away from the SW pin and the switch-node net to minimize coupling
+and interference. The power inductor (or transformer) should be located as close to the IC as possible to
+minimize the area of the switch-node,reducing parasitic capacitance and EMI. [2] [3]
+To eliminate spurious loss of input power, minimize the parasitic inductance from the input decoupling
+capacitors to VCC and AGND. Similarly, to prevent power loss in the high-side driver and cause
+undervoltage lockout, the added inductance between the bootstrap capacitor and HB-HS should be
+minimized by choosing an appropriate capacitor and suggested layout techniques.
+Figure 2 shows the best practices for minimizing board level parasitics for a multilayer board. It should be
+noted that the board stack up is critical to minimize the parasitic impedances. Distance between top layer
+and metal 2 should be made as small as possible. It is preferred that metal 2 be made to have the return
+path to ensure effective inductance cancellation. Distance between top layer and metal 2 should be made
+as small as possible (≤5 mil) to help with reducing the parasitic inductance as described in Figure 2.
+Figure 2. Board Layout
+Proper supply bypass of the low-side and high-side drivers is essential in providing stable switching
+performance without malfunction. Using 0402 sized capacitors, placed immediately adjacent to the IC on
+the top layer will ensure that the trace inductance for the bootstrap capacitor to HS-HB will be minimized.
+Similarly choosing a 0402 capacitor for VCC decoupling will also minimize the trace from the capacitor to
+the VCC, AGND pins and reduce the parasitic inductance. A high amount of inductance in these loops will
+cause a loss of gate drive to the high side and low side, which will hurt efficiency and circuit performance.
+If the inductance is high, a spurious loss of the drive signal below the undervoltage lockout threshold
+causes the device to turn off the gate supply completely to prevent damage to the GaN FETs.
+Figure 3 shows the PCB cross section for the LMG5200 power stage. Note that the input capacitors are
+close to the VIN pin on the top layer (same layer as power stage). The metal 2 is immediately below the
+top layer with minimal spacing between the top layer and metal 2 (≤5 mil). This ensures that the power
+loop inductance is minimized. As discussed in Section 3, Equation 2 add the number of vias needed to
+minimize extra resistance and minimize inductance. Vias also help to reduce the thermal resistance to the
+board. A 12-mil core via typically has a thermal resistance in the order of 75°C/W. In the design of the
+buck converter, 12 vias are used for an output of 6 A. These via are placed as close as possible to the
+pad without violating the pad to via clearance required by the PCB manufacturer. This helps in reducing
+the thermal resistance and the electrical resistance also of note is that 12-mil vias are used where
+possible as these have a higher current capability. [4]
+3SNVA729A – March 2015 – Revised September 2015 Layout Considerations for LMG5200 GaN Power Stage
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+LMG5200
+VIN Capacitors
+4 Layer PCB
+Small Return Path 
+Minimizes Power Loop 
+Impedance
+xxx
+SW 
+VIN
+PGND
+Metal 3
+PGND
+Legend
+LMG5200 Power Stage Layout www.ti.com
+Figure 3. Cross-Section of the LMG5200 PCB Layout
+As a general rule, 12-mil vias with 1 oz copper, has maximum current carrying capacity of 0.75 A.
+Figure 4 shows the power stage schematic for this layout example.
+4 Layout Considerations for LMG5200 GaN Power Stage SNVA729A – March 2015 – Revised September 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+22µFC21 22µF
+C15
+2.2µFC16
+1µFC30
+PGND
+PGND
+PGND
+VOUT5V - 10A
+0.1µF C24
+L1XAL8080-472ME
+TP2
+TP3
+VIN10V - 60V
+K_VIN_GND
+TP7
+GND
+47µFC20
+i
+High Voltage
+i
+High Current
+1µFC9
+PGND
+0 R9
+GND
+PGND
+0 R10
+2.2µFC29
+47µFC19
+47µFC17
+10pF C23
+GND
+0 R60 R7
+LO_SIGNAL
+VIN
+1
+HB
+2
+HS
+3
+HI
+4
+LI
+5
+VCC
+6
+AGND
+7
+SW
+8
+PGND
+9
+U1LMG5200
+10pF C25
+HI_SIGNAL
+47µFC18
+10µF
+100VX7S
+C10
+2.2µFC12
+2.2µFC13
+1µFC14
+PGND
+i
+High Voltage
+0.1µFC11
+0.1µFC8
+TP9
+TP10
+47µFC36
+12
+J1282841-2
+12
+J2282841-2
+1µF
+C2
+2.2µFC6
+2.2µFC5
+2.2µFC4
+0.1µFC1
+VCC
+www.ti.com LMG5200 Power Stage Layout
+Figure 4. Power Stage Schematic
+5SNVA729A – March 2015 – Revised September 2015 Layout Considerations for LMG5200 GaN Power Stage
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+LMG5200 Power Stage Layout www.ti.com
+As shown in Figure 5 through Figure 9, U1 is the indicator for the LMG5200 power stage and L1 is the
+indicator of the inductor. C1 and C13 indicate the high-frequency capacitors and need to be in close
+proximity to the LMG5200 power stage. An adequate number of vias must be added to the system to
+ensure sufficient thermal conductivity in close proximity of heat source. In the board layout shown in
+Figure 4, more than 20 vias are added to the GND, VIN, and VOUT nodes. The added via thermal
+resistance is very small (less than 1°C/W), adding more vias does not necessarily improve the board
+thermal performance as the board-to-ambient thermal resistance remains present and becomes a large
+part of the junction-to-ambient resistance.
+Figure 5. Placement of Components Figure 6. Top Layer
+Figure 7. Ground Plane Figure 8. Middle Layer
+6 Layout Considerations for LMG5200 GaN Power Stage SNVA729A – March 2015 – Revised September 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+www.ti.com LMG5200 Power Stage Layout
+Figure 9. Bottom Layer
+Figure 10 is the waveform of the switch node probed in the LMG5200 showing minimal overshoot and
+extremely low power loop inductance.
+Figure 10. Switch Node Waveforms
+Thermal performance of LMG5200 for the board layout are shown in Figure 11 and Figure 12 under these
+conditions:
+• VIN = 48 V
+• VOUT = 5 V
+• ILOAD= 5 A
+• fSW = 1 MHz
+• TA = 25°C
+7SNVA729A – March 2015 – Revised September 2015 Layout Considerations for LMG5200 GaN Power Stage
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+Fundamental of Board Level Parasitics www.ti.com
+In this condition, the converter is 90% efficient, with approximately 0.5 W of dissipation in the inductor and
+2W of dissipation in the LMG5200.
+Figure 11. With No Airflow, 2-W Dissipation Figure 12. WIth Airflow, 2-W Dissipation
+With no airflow and approximately 2-W dissipation, the average case temperature is 61.5°C and maximum
+case temperature is 75°C. With airflow, the average case temperature is 43°C and maximum case
+temperature is 55.2°C. These conditions are measured with ambient air at 25°C
+3 Fundamental of Board Level Parasitics
+Resistance of the printed circuit board provides an additional power loss mechanism in DC-DC converters.
+With good layout practices and the right selection of components, this loss mechanism can be reduced.
+This section describes how to calculate the resistance of common PCB features: rectangular traces and
+vias.
+Equation 1 calculates the resistance of any conductor.
+R = (ρ × l)/A
+where
+• ρ is the resistivity of copper
+• l is the length of the trace
+• A is the cross sectional area conducting the current (1)
+NOTE: When choosing a board material, it is important to note that plated copper has a resistivity of
+6 µΩ/cm, which is significantly higher than pure copper which is 1.7 µΩ/cm.
+8 Layout Considerations for LMG5200 GaN Power Stage SNVA729A – March 2015 – Revised September 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+/c180 /c180 /c180/c61 2 H v lL W
+/c230 /c246 /c230 /c246/c61 /c180 /c180 /c43 /c231 /c247 /c231 /c247 /c43/c232 /c248/c232 /c248
+1 1L 2 l ln T W 2
+R = /c4fl
+/c4e× (r0
+2 /c46r1
+2) 
+www.ti.com Fundamental of Board Level Parasitics
+Vias on PCBs use plated copper where the resistance is significantly higher, so an adequate number of
+vias should be considered when designing boards for high current. In some PCBs, plating is also applied
+to the surface (top and bottom layers) to increase the copper thickness. If the board is designed to be a
+one-plate-one board, this implies that the addition of the extra plated copper only provides about 25%
+reduction for in the resistance for a 2 oz. board compared to a 1 oz. board with no plated copper.
+NOTE: Copper resistance varies linearly with temperature and doubles from 25°C to 280°C.
+3.1 Vias
+Vias can also add significantly to resistance. Use Equation 2 to calculate the resistance of vias.
+(2)
+Traces add not only resistance but add inductance and capacitance as well. Added inductance is in the
+order of 6 nH/cm for a conductor without appropriate return path in close proximity.
+Figure 13. Via Dimensions Figure 14. Inductance Dimensions
+Self-inductance of a trace can be accurately calculated as shown in Equation 3 (note trace dimensions are
+in cm) and assumes transmission line behavior of the trace and is useful as a guide for calculating the
+approximate trace inductance.
+(3)
+Effective use of ground return planes in close proximity to the trace can significantly reduce the inductance
+of the trace. If H is the distance between the trace and the ground plane, then the calculated inductance is
+as follows
+where
+• L is the loop inductance, in nH
+• l is the length of the trace, in cm
+• W is the width of the trace, in cm
+• H is the height of the trace above the ground plane, in cm (4)
+Ground plane effectiveness is determined not only by the distance between the conducting trace and the
+plane (H) but also by the width of the ground plane. To ensure that there is effective cancellation of
+inductance it is necessary that the ground plane be much wider than conducting trace.
+9SNVA729A – March 2015 – Revised September 2015 Layout Considerations for LMG5200 GaN Power Stage
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+C = /c420 × /c42r × A
+t  
+Conclusion www.ti.com
+Knowing the impact of ground planes on effective cancellation of inductance, this technique can be used
+to significantly reduce the power loop inductance and gate loop inductance. Because these loops carry
+significant .
+Capacitive coupling between PCB layers can yield advantages and disadvantages in power PCB design.
+The capacitance between traces can be identified as described in Equation 5.
+where
+• A is the area of the copper planes
+• εr is the relative permittivity of the PCB dielectric
+• ε0 is the permittivity of air
+• t is the distance between the conductors (in meters) (5)
+Capacitive coupling can be used to advantage for creating coupling between the input and ground planes
+which can be used for high frequency decoupling in addition to the decoupling capacitors added to the
+system. Also it is important to note that to minimize the switching node capacitance a cutout directly
+underneath the inductor and the associated traces in the PGND plane and the subsequent planes helps
+minimize the added parasitic capacitance on the switch node.
+4 Conclusion
+GaN FETS are finding use in high frequency DC-DC converters. Special layout techniques are required to
+ensure that maximum performance of the DC-DC converter is obtained. Advantages and disadvantages of
+some commonly used techniques to design for the LMG5200 power stage have also been discussed. A
+fundamental overview on board level parasitics has been provided as a background for some of the layout
+choices that are made which should provide the designer with best practices for high frequency DC-DC
+converters board design.
+5 References
+1. White Paper: Advancing Power Supply Solutions Through the Promise of GaN (SSZY017)
+2. Application Report: Layout Tips for EMI Reduction in DC / DC Converters (SNVA638)
+3. Henry Ott, Noise Reduction Techniques in Electronic Systems (John Wiley and Sons, 1988)
+4. Application Report: Semiconductor and IC Package Thermal Metrics (SPRA953)
+10 Layout Considerations for LMG5200 GaN Power Stage SNVA729A – March 2015 – Revised September 2015
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+www.ti.com Revision History
+Revision History
+Changes from Original (March 2015) to A Revision ....................................................................................................... Page
+• Changed typo in part number in graphic ............................................................................................... 3
+NOTE: Page numbers for previous revisions may differ from page numbers in the current version.
+11SNVA729A – March 2015 – Revised September 2015 Revision History
+Submit Documentation Feedback
+Copyright © 2015, Texas Instruments Incorporated
+IMPORTANT NOTICE
+Texas Instruments Incorporated and its subsidiaries (TI) reserve the right to make corrections, enhancements, improvements and other
+changes to its semiconductor products and services per JESD46, latest issue, and to discontinue any product or service per JESD48, latest
+issue. Buyers should obtain the latest relevant information before placing orders and should verify that such information is current and
+complete. All semiconductor products (also referred to herein as “components”) are sold subject to TI’s terms and conditions of sale
+supplied at the time of order acknowledgment.
+TI warrants performance of its components to the specifications applicable at the time of sale, in accordance with the warranty in TI’s terms
+and conditions of sale of semiconductor products. Testing and other quality control techniques are used to the extent TI deems necessary
+to support this warranty. Except where mandated by applicable law, testing of all parameters of each component is not necessarily
+performed.
+TI assumes no liability for applications assistance or the design of Buyers’products. Buyers are responsible for their products and
+applications using TI components. To minimize the risks associated with Buyers’products and applications, Buyers should provide
+adequate design and operating safeguards.
+TI does not warrant or represent that any license, either express or implied, is granted under any patent right, copyright, mask work right, or
+other intellectual property right relating to any combination, machine, or process in which TI components or services are used. Information
+published by TI regarding third-party products or services does not constitute a license to use such products or services or a warranty or
+endorsement thereof. Use of such information may require a license from a third party under the patents or other intellectual property of the
+third party, or a license from TI under the patents or other intellectual property of TI.
+Reproduction of significant portions of TI information in TI data books or data sheets is permissible only if reproduction is without alteration
+and is accompanied by all associated warranties, conditions, limitations, and notices. TI is not responsible or liable for such altered
+documentation. Information of third parties may be subject to additional restrictions.
+Resale of TI components or services with statements different from or beyond the parameters stated by TI for that component or service
+voids all express and any implied warranties for the associated TI component or service and is an unfair and deceptive business practice.
+TI is not responsible or liable for any such statements.
+Buyer acknowledges and agrees that it is solely responsible for compliance with all legal, regulatory and safety-related requirements
+concerning its products, and any use of TI components in its applications, notwithstanding any applications-related information or support
+that may be provided by TI. Buyer represents and agrees that it has all the necessary expertise to create and implement safeguards which
+anticipate dangerous consequences of failures, monitor failures and their consequences, lessen the likelihood of failures that might cause
+harm and take appropriate remedial actions. Buyer will fully indemnify TI and its representatives against any damages arising out of the use
+of any TI components in safety-critical applications.
+In some cases, TI components may be promoted specifically to facilitate safety-related applications. With such components, TI’s goal is to
+help enable customers to design and create their own end-product solutions that meet applicable functional safety standards and
+requirements. Nonetheless, such components are subject to these terms.
+No TI components are authorized for use in FDA Class III (or similar life-critical medical equipment) unless authorized officers of the parties
+have executed a special agreement specifically governing such use.
+Only those TI components which TI has specifically designated as military grade or “enhanced plastic” are designed and intended for use in
+military/aerospace applications or environments. Buyer acknowledges and agrees that any military or aerospace use of TI components
+which have not been so designated is solely at the Buyer's risk, and that Buyer is solely responsible for compliance with all legal and
+regulatory requirements in connection with such use.
+TI has specifically designated certain components as meeting ISO/TS16949 requirements, mainly for automotive use. In any case of use of
+non-designated products, TI will not be responsible for any failure to meet ISO/TS16949.
+Products Applications
+Audio www.ti.com/audio Automotive and Transportation www.ti.com/automotive
+Amplifiers amplifier.ti.com Communications and Telecom www.ti.com/communications
+Data Converters dataconverter.ti.com Computers and Peripherals www.ti.com/computers
+DLP® Products www.dlp.com Consumer Electronics www.ti.com/consumer-apps
+DSP dsp.ti.com Energy and Lighting www.ti.com/energy
+Clocks and Timers www.ti.com/clocks Industrial www.ti.com/industrial
+Interface interface.ti.com Medical www.ti.com/medical
+Logic logic.ti.com Security www.ti.com/security
+Power Mgmt power.ti.com Space, Avionics and Defense www.ti.com/space-avionics-defense
+Microcontrollers microcontroller.ti.com Video and Imaging www.ti.com/video
+RFID www.ti-rfid.com
+OMAP Applications Processors www.ti.com/omap TI E2E Community e2e.ti.com
+Wireless Connectivity www.ti.com/wirelessconnectivity
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265
+Copyright © 2015, Texas Instruments Incorporated

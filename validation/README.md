@@ -58,3 +58,11 @@ scope for the processed EVM (ambient/airflow unstated in the source UG).
 - 19 A is excluded: the digitized measured trace ends at ~19.2 A and the
   tail interpolation is inexact — the exclusion is reported in the error
   table, not silent.
+
+## Sensitivity checks
+
+`inject_fixed_design.py --plateau-scale` (function argument) re-runs any
+point with the estimated MOSFET plateau voltage perturbed; results land in
+`evms/lm27402_evm/sensitivity_results.csv` and are reported in
+`error_report.md`. Rejected/deferred EVM candidates and reasons:
+`evms/REJECTED.md`.

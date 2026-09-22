@@ -59,13 +59,20 @@ def _mosfet(e: dict) -> MOSFET:
     )
 
 
-def build_fixed_context(evm_id: str, run_dir: Path, iout: float) -> ToolContext:
+def build_fixed_context(evm_id: str, run_dir: Path, iout: float,
+                        plateau_scale: float = 1.0) -> ToolContext:
     e = load_evm_entries(evm_id)
     tc = yaml.safe_load((REPO / "validation" / "evms" / evm_id
                          / "test_conditions.yaml").read_text(encoding="utf-8"))
 
     hs = _mosfet(e["mosfets"][0])
     ls = _mosfet(e["mosfets"][1])
+    if plateau_scale != 1.0:
+        # sensitivity check (plan Part A item 4): the plateau voltage is a
+        # documented pipeline_estimate; perturbing it +-20% moves the modeled
+        # crossover time and hence the light-load switching loss
+        hs.V_plateau = hs.V_plateau * plateau_scale
+        ls.V_plateau = ls.V_plateau * plateau_scale
     li_f = e["inductor"]["status_fields"]
     inductor = Inductor(
         part_number=e["inductor"]["part_number"],
@@ -97,9 +104,11 @@ def build_fixed_context(evm_id: str, run_dir: Path, iout: float) -> ToolContext:
     return ctx
 
 
-def run_point(evm_id: str, iout: float, run_dir: Path) -> dict:
+def run_point(evm_id: str, iout: float, run_dir: Path,
+              plateau_scale: float = 1.0) -> dict:
     """Run the real pipeline at one load point; returns the sim results."""
-    ctx = build_fixed_context(evm_id, run_dir, iout)
+    ctx = build_fixed_context(evm_id, run_dir, iout,
+                              plateau_scale=plateau_scale)
     out: dict = {"load_a": iout}
     for tool in ("build_netlist", "run_spice", "electro_thermal_converge"):
         r = dispatch(ctx, tool, {})
