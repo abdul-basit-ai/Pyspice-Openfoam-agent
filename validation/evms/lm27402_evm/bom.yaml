@@ -1,0 +1,33 @@
+# Exact power-path parts transcribed from SNVA406C section 10 (Bill of Materials)
+evm_id: lm27402_evm
+controller:
+  designator: U1
+  part_number: LM27402S
+  manufacturer: Texas Instruments
+mosfet_hs:
+  designator: QT1
+  part_number: SiR436DP
+  manufacturer: Vishay Siliconix
+  bom_data: "25 V, 40 A, 13 nC, RDS(on) at 4.5 V = 6.2 mOhm"
+mosfet_ls:
+  designator: QL1
+  part_number: Si7192DP
+  manufacturer: Vishay Siliconix
+  bom_data: "30 V, 60 A, 43.5 nC, RDS(on) at 4.5 V = 1.85 mOhm"
+inductor:
+  designator: Lout
+  part_number: IHLP5050CEERR68M06
+  manufacturer: Vishay
+  bom_data: "0.68 uH, 2.34 mOhm"
+output_capacitors:
+  designator: Co1-Co4
+  part_number: C1210C107M9PACTU
+  manufacturer: KEMET
+  qty: 4
+  bom_data: "100 uF, Ceramic, X5R, 6.3 V, 20%"
+input_capacitors:
+  designator: Cin1-Cin5
+  part_number: GRM32ER61E226KE15L
+  manufacturer: Murata
+  qty: 5
+  note: input rail - not simulated (rig uses ideal source)

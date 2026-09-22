@@ -1,0 +1,864 @@
+User’s Guide
+LM27402 Buck Controller Evaluation Module User's Guide
+Table of Contents
+1 Introduction.............................................................................................................................................................................2
+2 Evaluation Board.................................................................................................................................................................... 2
+3 Evaluation Board Operating Specifications.........................................................................................................................2
+4 Evaluation Board Schematic................................................................................................................................................. 3
+5 Connection Descriptions....................................................................................................................................................... 4
+6 Performance Characteristics.................................................................................................................................................5
+7 LM27402 Evaluation Board.................................................................................................................................................... 6
+8 Setup Procedure..................................................................................................................................................................... 6
+9 Evaluation Board Component Selection.............................................................................................................................. 7
+9.1 Input Filter, Rin, Cin ............................................................................................................................................................ 7
+9.2 Input Capacitors, Cin1–Cin5 ................................................................................................................................................7
+9.3 Inductor, Lout ......................................................................................................................................................................8
+9.4 Output Capacitor, Co1–Co4 ................................................................................................................................................ 8
+9.5 Soft-Start Capacitor, Css ....................................................................................................................................................8
+9.6 Internal LDO Bypass Capacitor, Cdd ................................................................................................................................. 8
+9.7 Frequency Adjust Resistor, Rf ...........................................................................................................................................8
+9.8 Current Limit Circuitry, Rs, Cs, Rs1, Rs5, Rtc ...................................................................................................................... 9
+9.9 Enable Resistors, Ren1, Ren2 .............................................................................................................................................9
+9.10 Tracking..........................................................................................................................................................................10
+9.11 Compensation and Feedback, Rfb1, Rc1, Rc2, Cc1, Cc2, Cc3 ..........................................................................................10
+9.12 Rfb1 and Rfb2 ..................................................................................................................................................................10
+10 Bill of Materials....................................................................................................................................................................11
+11 PCB Component Placement...............................................................................................................................................12
+12 Revision History................................................................................................................................................................. 13
+List of Figures
+Figure 3-1. Simplified Application Schematic.............................................................................................................................. 2
+Figure 4-1. VIN = 4.5 V to 20 V, VOUT = 1.5 V, IOUT = 20 A.......................................................................................................... 3
+Figure 6-1. Efficiency vs Load......................................................................................................................................................5
+Figure 6-2. Line Regulation......................................................................................................................................................... 5
+Figure 6-3. Load Regulation (VIN = 12 V).................................................................................................................................... 5
+Figure 6-4. 0-A to 10-A Load Transient Response...................................................................................................................... 5
+Figure 6-5. 10-A to 20-A Load Transient Response.................................................................................................................... 5
+Figure 6-6. 0-A to 20-A Load Transient Response...................................................................................................................... 5
+Figure 6-7. Start-Up Waveform (No Load)...................................................................................................................................6
+Figure 6-8. Start-Up Waveform (15-A Electronic Load)...............................................................................................................6
+Figure 11-1. Top Layer...............................................................................................................................................................12
+Figure 11-2. Mid Layer 1............................................................................................................................................................12
+Figure 11-3. Mid Layer 2............................................................................................................................................................13
+Figure 11-4. Bottom Layer (View From the Bottom).................................................................................................................. 13
+Trademarks
+All trademarks are the property of their respective owners.
+www.ti.com Table of Contents
+SNVA406C – MAY 2010 – REVISED JANUARY 2022
+Submit Document Feedback
+LM27402 Buck Controller Evaluation Module User's Guide 1
+Copyright © 2022 Texas Instruments Incorporated
+1 Introduction
+The LM27402 is a feature-rich, synchronous, single phase PWM DC/DC buck controller. A wide input voltage 
+range of 3-V to 20-V, input voltage feedforward, and dual high current integrated N-channel MOSFET drivers 
+make the LM27402 appropriate for high current intermediate bus system rails in point-of-load applications. A 
+0.6-V ±1% internal voltage reference enables high accuracy and low voltage capability at the output. Inductor 
+DCR current sensing provides an accurate current limit detection method and promotes high output current and 
+high system efficiency by eliminating resistive current sense elements.
+This user's guide describes the steps taken in selecting the external components to build a fully functional 
+DC/DC converter. This user's guide includes diagrams of the evaluation board layout and bill of materials. 
+The evaluation board represents a typical application circuit and can be modified if different specifications are 
+desired. Refer to the LM27402 High Performance Synchronous Buck Controller with DCR Current Sensing data 
+sheet for additional design equations.
+2 Evaluation Board
+The LM27402 evaluation board represents a 20-A typical application circuit. The application circuit is optimized 
+for an input voltage of 12 V. However, input voltage feedforward technology allows the evaluation board to 
+operate up to 20 V while maintaining a stable output voltage of 1.5 V at 20 A. Temperature compensated 
+inductor DCR current limit circuitry provides a steady current limit set point. Extra MOSFET and input/output 
+capacitor footprints are included to accommodate higher currents if desired. An externally set soft-start time 
+of 10 ms provides a controlled monotonic start-up. The LM27402 evaluation board also supports pre-biased 
+start-up and provides a tracking connection for power supply sequencing. An external clock can be applied to 
+change the switching frequency through an on board synchronization connection. PGOOD is externally pulled up 
+to VDD and can be monitored via an on board terminal. Two extra terminals are included to provide a network 
+analyzer connection for control loop stability analysis. The PCB measures 1.3 inch × 1.8 inch and includes 
+input/output banana connectors for the input supply and load.
+3 Evaluation Board Operating Specifications
+• Input Voltage = 4.5 V to 20 V
+• Output Voltage = 1.5 V
+• Output Current = 0 A to 20 A
+VIN
+LM27402
+CIN
+QH
+QL
+L
+RS CS
+CBOOT
+COUT
+RFB1
+RFB2CC2
+CC1 RC1
+RFADJ
+CSS
+DBOOT
+CVDD
+VOUT
+CC3
+RC2
+VIN
+HG
+LG
+GND
+SW
+CS+
+CS-
+VDD
+CBOOT
+FB
+COMP
+EN
+SS/TRACK
+SYNC
+PGOOD
+FADJ
+RSET
+RPGOOD
+CSBY
+CF RF
+Figure 3-1. Simplified Application Schematic
+Introduction www.ti.com
+2 LM27402 Buck Controller Evaluation Module User's Guide SNVA406C – MAY 2010 – REVISED JANUARY 2022
+Submit Document Feedback
+Copyright © 2022 Texas Instruments Incorporated
+4 Evaluation Board Schematic
+LM27402
+QT2
+QL2
+Lout
+Rs Cs
+Cb
+Co1
+Rfb1
+Rfb2
+Cc2
+Cc1 Rc1
+Rf
+Css
+Ddd
+Cdd
+VOUT
+Cc3
+Rc2
+VIN
+HG
+LG
+GND
+SW
+CS+
+CS-
+VDD
+CBOOT
+FB
+COMP
+EN
+SS/TRACK
+SYNC
+PGOOD
+FADJ
+Rpg
+Csy
+Cin Rin
+PGD
+EN
+SYNC
+SS/TK
+Rs2
+Rs1
+Co2 Co3 Co4
+Co5
++
+GND OUT
+Rs3
+Rs5
+Rtc
+Rs4
+QT1
+QL1 100 PF 100 PF100 PF100 PF OPEN
+750:
+0.68 PH
+OPEN
+OPEN
+5.6 k:
+OPEN
+4110ppm
+6.34 k:
+1.3 k: 220 nF
+OPEN
+OPEN
+SiR436DP
+Si7192DP
+20.0 k:
+261:
+13.3 k:
+820 pF
+8.01 k:3.9 nF
+150 pF
+1 nF
+Csb
+Rsb
+1.00:
+220 nF
+1 PF 2.2:
+100 pF
+Dsw
+51.1 k: 1 PF
+45.3 k:
+47 nF
+Ren2
+Ren1
+OPEN
+OPEN
+VIN
+Cin1 Cin2 Cin3
+22 PF 22 PF22 PF
+Cin4
+22 PF
+Cin5
++ +
+Cin6 Cin7
+22 PF OPEN OPEN
+VIN
+GND IN
+Rl
+Rh
+optional
+Tx
+Rx
+R50
+49.9:
+Figure 4-1. VIN = 4.5 V to 20 V, VOUT = 1.5 V, IOUT = 20 A
+www.ti.com Evaluation Board Schematic
+SNVA406C – MAY 2010 – REVISED JANUARY 2022
+Submit Document Feedback
+LM27402 Buck Controller Evaluation Module User's Guide 3
+Copyright © 2022 Texas Instruments Incorporated
+5 Connection Descriptions
+PCB Silkscreen Description
+VIN VIN is the input voltage terminal to the PCB and is equipped to handle a ¼-inch banana jack or can 
+be unbolted to accept a ring connector. The LM27402 will operate over the input voltage range of 3.0 
+V to 20 V. However, the evaluation board is optimized for an input voltage of 12 V and will operate 
+from 4.5 V to 12 V. The absolute maximum voltage rating for this pin is 22 V.
+GND IN GND IN is the input ground terminal to the PCB and is equipped to handle a ¼-inch banana jack or 
+can be unbolted to accept a ring connector. There are two GND connections on the PCB. GND IN 
+should be used for the input supply only.
+VOUT VOUT is the output voltage terminal of the PCB and is equipped to handle a ¼-inch banana jack or 
+can be unbolted to accept a ring connector. VOUT should be connected to the load through a low 
+impedance line to minimize any line drop.
+GND OUT GND OUT is the output ground terminal of the PCB and is equipped to handle a ¼-inch banana jack 
+or can be unbolted to accept a ring connector. There are two GND connections on the PCB. GND 
+OUT should be used for the output load only.
+VDD VDD is the output of the internal 4.5-V sub regulator.
+PGD PGOOD output. This connection allows the user to monitor PGOOD during fault conditions. PGOOD 
+is pulled up to VDD and should not exceed 5.5 V under normal operating conditions and the absolute 
+maximum voltage rating is 6 V.
+EN EN is connected to the EN pin of the LM27402. A voltage typically greater than 1.17 V will enable 
+the IC. A hysteresis of 100 mV on EN provides noise immunity. The LM27402 will self enable by a 
+2-µA internal current source to EN if no control signal is applied to EN. The enable threshold can be 
+set with an optional external resistor divider from VIN. The EN pin should not exceed the voltage on 
+VDD. The operating voltage for this pin should not exceed 5.5 V and the absolute maximum voltage 
+rating is 6 V.
+SS/TK SS/TK provides access to the SS/TRACK pin of the LM27402. Connections to this terminal are 
+not needed for most applications. The feedback pin of the LM27402 will track the voltage on the 
+SS/TRACK pin if driven with an external voltage source that is less than the 0.6-V internal reference. 
+The operating voltage for this pin should not exceed 5.5 V and the absolute maximum voltage rating 
+on this pin is 6 V. The SS/TRACK pin should not exceed the voltage on VDD.
+SYNC SYNC connects to the SYNC pin of the LM27402. An external clock signal can be connected to 
+the SYNC connection to set the switching frequency. If a SYNC signal is not present, the switching 
+frequency will fall back to the frequency set by the FADJ resistor. The SYNC frequency must be 
+greater than the frequency set by the FADJ resistor and can sync up to 400 kHz above the free 
+running frequency. This pin should not exceed the voltage on VDD.
+RX and TX The RX and TX terminals provide the connections to measure the loop response with a network 
+analyzer. RX refers to an applied reference signal and TX refers to the test voltage or in this case the 
+output voltage. Between RX and TX exists a 50-Ω termination resistor.
+Connection Descriptions www.ti.com
+4 LM27402 Buck Controller Evaluation Module User's Guide SNVA406C – MAY 2010 – REVISED JANUARY 2022
+Submit Document Feedback
+Copyright © 2022 Texas Instruments Incorporated
+6 Performance Characteristics
+70
+75
+80
+85
+90
+95
+100
+0 5 10 15 20
+EFFICIENCY (%)
+OUTPUT CURRENT (A)
+VIN = 12V
+VIN = 5V
+Figure 6-1. Efficiency vs Load
+IOUT = 20A Figure 6-2. Line Regulation
+Figure 6-3. Load Regulation (VIN = 12 V)
+VOUT  (50 mV/Div)
+IOUT  (10A/Div)
+Figure 6-4. 0-A to 10-A Load Transient Response
+Figure 6-5. 10-A to 20-A Load Transient Response
+ Figure 6-6. 0-A to 20-A Load Transient Response
+www.ti.com Performance Characteristics
+SNVA406C – MAY 2010 – REVISED JANUARY 2022
+Submit Document Feedback
+LM27402 Buck Controller Evaluation Module User's Guide 5
+Copyright © 2022 Texas Instruments Incorporated
+VOUT  (500mV/Div)
+VEN  (5V/Div)
+VPGOOD  (5V/Div)
+Figure 6-7. Start-Up Waveform (No Load)
+ Figure 6-8. Start-Up Waveform (15-A Electronic 
+Load)
+7 LM27402 Evaluation Board
+The LM27402 evaluation board is designed to support multiple applications and modifications and is optimized 
+for a 4.5-V to 12-V input voltage range. The maximum steady state output current is set at 20 A and will typically 
+current limit at 24 A. The PCB features bolt-on banana connections if heavy duty connectors are needed.
+8 Setup Procedure
+1. Set the input power supply voltage to 12 V. Adjust the input supply current limit level to 10 A to protect from 
+any unanticipated shorts.
+2. Turn the input power supply off. Connect the input supply positive terminal to the VIN terminal and the input 
+supply ground terminal to the GND IN terminal.
+3. Turn the output electronic load off. Connect the electronic load positive terminal to the VOUT terminal and 
+the ground terminal to the GND OUT terminal of the LM27402 evaluation board.
+4. Turn the input supply on. The part will self enable and the output voltage should be 1.5 V. Slowly increase 
+the load current to 20 A. The input voltage can now be adjusted as well.
+CAUTION
+If the input voltage is below 5 V, the internal LDO will be in a drop out state. The output of the LDO 
+provides the driving voltage across the gates of the MOSFETs. If the voltage at VDD decreases 
+enough, the efficiency can suffer if the MOSFETs are not fully enhanced in the on-state. The output 
+should maintain regulation.
+LM27402 Evaluation Board www.ti.com
+6 LM27402 Buck Controller Evaluation Module User's Guide SNVA406C – MAY 2010 – REVISED JANUARY 2022
+Submit Document Feedback
+Copyright © 2022 Texas Instruments Incorporated
+9 Evaluation Board Component Selection
+This section describes the design process for the LM27402 evaluation board. Unless otherwise indicated, all 
+formulae assume units of the following:
+• Amps (A) for current
+• Farads (F) for capacitance
+• Henries (H) for inductance
+• Volts (V) for voltage
+The first equation to calculate for any buck converter is duty ratio:
+D = VOUT
+VIN
+x 
+1
+(1)
+Due to the resistive powertrain losses, the duty ratio will increase based on the overall efficiency, η. Setting η = 1 
+yields an approximate result for D.
+9.1 Input Filter, Rin, Cin
+An RC filter is added to prevent any switching noise from interfering with the internal analog circuitry connected 
+to VIN. The RC filter can be seen in the evaluation board schematic as components Rin and Cin. There is a 
+practical limit to the value of resistor Rin as the VIN pin of the LM27402 will draw large bias currents to switch 
+the gate of each MOSFET. If Rin is too large, the resulting voltage drop can disrupt normal operation. For the 
+evaluation board, a 2.2-Ω resistor in conjunction with a 1.0-µF 25V X5R ceramic capacitor is used for the input 
+RC filter.
+9.2 Input Capacitors, Cin1–Cin5
+Input capacitors should be selected based on the required input voltage ripple and maximum RMS current rating. 
+The required RMS current rating of the input capacitor for a buck regulator can be estimated by the following 
+equation:
+ICIN(RMS) = IOUT D(1 - D)
+(2)
+From this equation, it follows that the maximum ICIN(RMS) requirement will occur at a full 20-A load current with 
+the system operating at 50% duty cycle. Under this condition, the maximum ICIN(RMS) is given by:
+ICIN(RMS) = 20A 0.5 x 0.5 = 10A
+(3)
+The voltage ripple can be calculated by:
+’VIN = IOUT x D x (1 – D)
+CIN x fSW
+IOUT ++ ’IL
+2 x RESR_CIN
+(4)
+Ceramic capacitors feature a very large IRMS rating in a small footprint, making a ceramic capacitor ideal for this 
+application. Five 22-µF X5R 25-V ceramic capacitors were selected to provide the necessary input capacitance 
+for the evaluation board. Neglecting the effects of ESR, at 12-V VIN and 20-A IOUT the selected input capacitors 
+yield an input voltage ripple of:
+’VIN = 20A x 0.125 x (1- 0.125)
+110 PF x 300 kHz  = 66 mV
+(5)
+If desired, two extra capacitors can be added in the Cin6 and Cin7 footprints.
+www.ti.com Evaluation Board Component Selection
+SNVA406C – MAY 2010 – REVISED JANUARY 2022
+Submit Document Feedback
+LM27402 Buck Controller Evaluation Module User's Guide 7
+Copyright © 2022 Texas Instruments Incorporated
+9.3 Inductor, Lout
+As per data sheet recommendations, the inductor value should initially be chosen to produce a peak to peak 
+ripple current between 20% and 40% of the maximum operating output current. A 30% current ripple was chosen 
+for the LM27402 evaluation board. The minimum inductance required is calculated by:
+LMIN = (VIN - VOUT) x D
+’IL x fSW
+(12V - 1.5V) x 0.125
+(0.3 x 20A) x 300 kHz= = 0.73 PH
+(6)
+An actual inductor is selected based on a trade-off between physical size, efficiency, and current carrying 
+capability. A Vishay IHLP5050 0.68-µH inductor results in a peak to peak current ripple of 6.4 A and offers a 
+balance between efficiency (2.34-mΩ DCR), size (12.9 mm × 13.2 mm), and saturation current rating (49-A ISAT).
+9.4 Output Capacitor, Co1–Co4
+The value of the output capacitor in a buck regulator influences the steady state voltage ripple as well as the 
+output voltage response to a load transient. Given the peak-to-peak inductor current ripple (ΔIL), the output 
+voltage ripple can be approximated by:
+’VOUT = ’IL x  
+1
+8 x fSW x COUT
+2
+RESR
+2 +
+(7)
+where
+• ΔVOUT (V) is the amount of peak-to-peak voltage ripple at the power supply output.
+• RESR (Ω) is the series resistance of the output capacitor.
+• fSW (Hz) is the switching frequency.
+• COUT (F) is the output capacitance used in the design and is the sum of Co1 through Co4.
+For the evaluation board, four 100-µF 6.3-V X5R ceramic capacitors were selected for the output capacitance 
+to provide adequate transient and DC bias performance in a relatively small package. From the technical 
+specifications of this capacitor, the ESR is approximately 3 mΩ and the effective in-circuit capacitance is 
+approximately 60 µF (reduced from 100 µF due to the 1.5-V DC bias and worst case tolerance). With these 
+values, the peak-to-peak voltage ripple when operating from a VIN of 12 V is:
+6.4A x   
+1
+8 x 300 kHz x 240 PF
+2
+(0.75 m:)+ = 12 mVp-p
+2
+(8)
+9.5 Soft-Start Capacitor, Css
+A soft-start capacitor can be used to control the start-up time of the LM27402. The start-up time is estimated by 
+the following equation:
+tSS =
+0.6V x CSS
+ISS
+(9)
+ISS is nominally 3 µA. For the evaluation board, the soft-start time has been designed to be approximately 10 ms, 
+resulting in a Css capacitor value of 47 nF. The LM27402 defaults to a 1.28-ms start-up ramp time if Css is not 
+used.
+9.6 Internal LDO Bypass Capacitor, Cdd
+The Cdd capacitor is necessary to bypass an internal 4.5-V subregulator. This capacitor should be sized equal 
+to or greater than 1 µF but less than 10 µF. A value of 1 µF is sufficient for most applications and is used in the 
+LM27402 evaluation board.
+9.7 Frequency Adjust Resistor, Rf
+The LM27402 switching frequency can be adjusted from 200 kHz to 1.2 MHz using an external resistor labeled 
+on the evaluation board as Rf. The frequency of the LM27402 evaluation board was selected to be 300 kHz. 
+Evaluation Board Component Selection www.ti.com
+8 LM27402 Buck Controller Evaluation Module User's Guide SNVA406C – MAY 2010 – REVISED JANUARY 2022
+Submit Document Feedback
+Copyright © 2022 Texas Instruments Incorporated
+A 300-kHz switching frequency enables the LM27402 to deliver high currents by reducing the MOSFET related 
+losses while maintaining the ability to achieve satisfactory transient response. To find the value of resistance 
+needed for a given frequency, use the following equation: (fSW (kHz), Rf (kΩ)).
+Rf  = 100 - 5 = 100 = 45 k:- 5300 -100 1fSW -100 1
+(10)
+A value of 45.7 kΩ was chosen for the Rf resistor on the LM27402 evaluation board.
+9.8 Current Limit Circuitry, Rs, Cs, Rs1, Rs5, Rtc
+The current limit circuitry included on the LM27402 evaluation board sets the current limit at 24 A. Components 
+Rs and Cs connect directly under the inductor pads and create an RC filter. The time constant of RsCs should 
+match the time constant of the inductance and DCR of the inductor:
+L= RDCR
+RSCS
+(11)
+A typical range of capacitance used in the RsCs network is 100 nF to 1 µF. A 220-nF capacitor was chosen for 
+the Cs filter capacitor resulting in an Rs resistor of:
+Lout
+= CsRDCR
+Rs = 1.32 k:0.68 PH
+220 nF x 2.34 m: =
+(12)
+A standard value resistor of 1.3 kΩ was selected for Rs. The current limit level is set through a resistor from 
+CS- to the VOUT pad of the inductor. The LM27402 evaluation board is set to current limit at 24-A IOUT. The 
+maximum inductor current is IOUT + ΔIL / 2 = 24 + 6.4 / 2 = 27.2 A. The next equation describes the current limit 
+resistor calculation:
+ILIMIT RDCR
+= Ics-
+RSET = 27.2A x 2.34 m:
+10 PA = 6.36 k:
+(13)
+Copper resistance changes by about 3900 ppm/°C and can cause a significant error in the current limit setpoint. 
+The LM27402 evaluation board is equipped with a 5.6-kΩ positive temperature coefficient resistor (Rtc) to 
+compensate the effects of copper resistance and a 750-Ω resistor Rs3 in series with Rtc to approximately provide 
+the 6.36 kΩ needed for RSET. Rtc was chosen to be a Vishay TFPT1206L5601F 5.6-kΩ resistor which has a 
+temperature coefficient of 4110 ppm/°C. An optional 6.34-kΩ resistor (Rs1) was placed between CS+ and the 
+RsCs filter to mirror the impedance of the CS- pin in addition to a 100-pF capacitor placed between CS+ and CS- 
+near the IC to reduce the effects of noise.
+The internal 10-µA current source is powered from VIN. If the voltage between VIN and CS- is below 1 V, the 
+current source will supply less than 10 µA. If this happens, the common mode voltage of the current sense 
+comparator inputs (CS+ and CS-) can be decreased to ensure 10 µA of current. Extra resistor pads (Rs1, 
+Rs2, Rs4) are included in the LM27402 evaluation board to lower the common mode voltage. Please refer to 
+the AN-2060 LM27402 Current Limit Application Circuits application report for design guidelines to adjust the 
+common mode voltage of the current sense comparator.
+9.9 Enable Resistors, Ren1, Ren2
+The LM27402 evaluation board is equipped with an enable connection tied directly to EN. Resistor footprints 
+Ren1 and Ren2 provide an optional voltage divider network from VIN to GND to program the LM27402 to enable 
+at a certain input voltage. The following equation will guide the user in choosing resistors values to create a 
+resistor divider for EN:
+Ren1 = VIN - 1.17V
+1.17V - IEN x Ren2
+Ren2
+(14)
+www.ti.com Evaluation Board Component Selection
+SNVA406C – MAY 2010 – REVISED JANUARY 2022
+Submit Document Feedback
+LM27402 Buck Controller Evaluation Module User's Guide 9
+Copyright © 2022 Texas Instruments Incorporated
+9.10 Tracking
+The LM27402 evaluation board is setup with a tracking connection (SS/TK). The SS/TK terminal is also the 
+soft-start pin. If a voltage source is connected to the SS/TK connection of the board, the output can be controlled 
+up to 1.5 V (voltage set by the feedback resistors). The LM27402 will stop tracking when the SS/TK voltage 
+exceeds 0.6 V. Please refer to the data sheet for more details of the tracking function.
+9.11 Compensation and Feedback, Rfb1, Rc1, Rc2, Cc1, Cc2, Cc3
+In order for the LM27402 to regulate, the feedback loop must be closed and compensated. The LM27402 
+employs voltage mode control to regulate the output voltage. Voltage mode control requires the LC complex 
+double pole caused by Lout and Co1 – Co5 to be compensated to reduce the likelihood of oscillation. The 
+evaluation board incorporates type III compensation which adds three poles and two zeros to the open loop 
+transfer function. The evaluation board is conservatively compensated to grant the user the freedom to make 
+small changes to the powertrain circuitry while maintaining adequate stability. Please refer to the LM27402 High 
+Performance Synchronous Buck Controller with DCR Current Sensing data sheet for the type III compensator 
+design equations. The compensation components include the following:
+• Rfb1
+• Rfb2
+• Rc1
+• Rc2
+• Cc1
+• Cc2
+• Cc3
+9.12 Rfb1 and Rfb2
+The resistors labeled Rfb1 and Rfb2 create a voltage divider from VOUT to FB and FB to GND that is used to set 
+the nominal output voltage of the regulator. Nominally, the output of the LM27402 evaluation board is set to 1.5 
+V using resistor values of Rfb1 = 20.0 kΩ and Rfb2 = 13.3 kΩ. If a different output voltage is required, the value of 
+Rfb2 can be adjusted according to the equation:
+Rfb1
+- 1VOUT
+0.6
+Rfb2 =
+(15)
+Rfb1 does not need to be changed from its value of 20.0 kΩ.
+Evaluation Board Component Selection www.ti.com
+10 LM27402 Buck Controller Evaluation Module User's Guide SNVA406C – MAY 2010 – REVISED JANUARY 2022
+Submit Document Feedback
+Copyright © 2022 Texas Instruments Incorporated
+10 Bill of Materials
+Designator Type Parameters Part Number Qty Manufacturer
+U1 Synchronous Buck 
+Controller
+LM27402S 1 Texas 
+Instruments
+Cb Capacitor 0.22 µF, Ceramic, X7R, 25 V, 10% GRM188R71E224KA88D 1 Murata
+Cc1 Capacitor 3900 pF, Ceramic, X7R, 50 V, 10% GRM188R71H392KA01D 1 Murata
+Cc2 Capacitor 150 pF, Ceramic, C0G, 50 V, 5% GRM1885C1H151JA01D 1 Murata
+Cc3 Capacitor 820 pF, Ceramic, C0G, 50 V, 5% GRM1885C1H821JA01D 1 Murata
+Cdd Capacitor 1 µF, Ceramic, X5R, 25 V, 10% GRM188R61E105KA12D 1 Murata
+Cin Capacitor 1 µF, Ceramic, X5R, 25 V, 10% GRM188R61E105KA12D 1 Murata
+Cin1–Cin5 Capacitor 22 µF, Ceramic, X5R, 25 V, 10% GRM32ER61E226KE15L 5 Murata
+Co1–Co4 Capacitor 100 µF, Ceramic, X5R, 6.3 V, 20% C1210C107M9PACTU 4 Kemet
+Cs Capacitor 0.22 µF, Ceramic, X7R, 25 V, 10% GRM188R71E224KA88D 1 Murata
+Csb Capacitor 1000 pF, Ceramic, X7R, 50 V, 10% GRM188R71H102KA01D 1 Murata
+Css Capacitor 47000 pF, Ceramic, X7R, 16 V, 10% GRM188R71C473KA01D 1 Murata
+Csy Capacitor 100 pF, Ceramic, C0G/NP0, 50 V, 5% GRM1885C1H101JA01D 1 Murata
+Ddd Diode Schottky Diode, Average I = 100 mA, 
+Max Surge I = 750 mA
+CMOSH-3 1 Central Semi
+Dsw Diode Schottky Diode, Average I = 3 A, Max 
+Surge I = 80 A
+CMSH3-40M 1 Central Semi
+Lout Inductor 0.68 µH, 2.34 mΩ IHLP5050CEERR68M06 1 Vishay
+QL1 N-CH MOSFET 30 V, 60 A, 43.5 nC, RDS(ON) at 4.5 V 
+= 1.85 mΩ
+Si7192DP 1 Vishay
+QT1 N-CH MOSFET 25 V, 40 A, 13 nC, RDS(ON) at 4.5 V = 
+6.2 mΩ
+SiR436DP 1 Vishay
+R50 Resistor 49.9 Ω, 1%, 0.1W CRCW060349R9FKEA 1 Vishay
+Rc1 Resistor 8.06 kΩ, 1%, 0.1W CRCW06038k06FKEA 1 Vishay
+Rc2 Resistor 261 Ω, 1%, 0.1W CRCW0603261RFKEA 1 Vishay
+Rf Resistor 45.3 kΩ, 1%, 0.1W CRCW060345k3FKEA 1 Vishay
+Rfb1 Resistor 20.0 kΩ, 1%, 0.1W CRCW060320k0FKEA 1 Vishay
+Rfb2 Resistor 13.3 kΩ, 1%, 0.1W CRCW060313k3FKEA 1 Vishay
+Rin Resistor 2.2 Ω, 5%, 0.1W CRCW06032R20JNEA 1 Vishay
+Rpg Resistor 51.1 kΩ, 1%, 0.1W CRCW060351k1FKEA 1 Vishay
+Rs Resistor 1.3 kΩ, 1%, 0.1W CRCW06031k30FKEA 1 Vishay
+Rs1 Resistor 6.34 kΩ, 1%, 0.1W CRCW06036k34FKEA 1 Vishay
+Rs3 Resistor 750 Ω, 1%, 0.1W CRCW0603750RFKEA 1 Vishay
+Rsb Resistor 1.0 Ω, 1%, 0.125W CRCW08051R00FNEA 1 Vishay
+Rtc Resistor 5.6 kΩ, 1%, 4110 ppm/°C TFPT1206L5601F 1 Vishay
+GND IN, GND 
+OUT, VOUT, VIN
+Power Terminal 3267 4 Panoma
+VDD, PGD, 
+SS/TK, SYNC, Rx, 
+Tx
+Turret Terminal 5002 6 Keystone
+www.ti.com Bill of Materials
+SNVA406C – MAY 2010 – REVISED JANUARY 2022
+Submit Document Feedback
+LM27402 Buck Controller Evaluation Module User's Guide 11
+Copyright © 2022 Texas Instruments Incorporated
+11 PCB Component Placement
+Figure 11-1. Top Layer
+Figure 11-2. Mid Layer 1
+PCB Component Placement www.ti.com
+12 LM27402 Buck Controller Evaluation Module User's Guide SNVA406C – MAY 2010 – REVISED JANUARY 2022
+Submit Document Feedback
+Copyright © 2022 Texas Instruments Incorporated
+Figure 11-3. Mid Layer 2
+Figure 11-4. Bottom Layer (View From the Bottom)
+12 Revision History
+NOTE: Page numbers for previous revisions may differ from page numbers in the current version.
+Changes from Revision B (May 2013) to Revision C (January 2022) Page
+• Updated the numbering format for tables, figures, and cross-references throughout the document. ................2
+• Updated the user's guide title............................................................................................................................. 2
+www.ti.com Revision History
+SNVA406C – MAY 2010 – REVISED JANUARY 2022
+Submit Document Feedback
+LM27402 Buck Controller Evaluation Module User's Guide 13
+Copyright © 2022 Texas Instruments Incorporated
+STANDARD TERMS FOR EVALUATION MODULES
+1. Delivery: TI delivers TI evaluation boards, kits, or modules, including any accompanying demonstration software, components, and/or
+documentation which may be provided together or separately (collectively, an “EVM” or “EVMs”) to the User (“User”) in accordance
+with the terms set forth herein. User's acceptance of the EVM is expressly subject to the following terms.
+1.1 EVMs are intended solely for product or software developers for use in a research and development setting to facilitate feasibility
+evaluation, experimentation, or scientific analysis of TI semiconductors products. EVMs have no direct function and are not
+finished products. EVMs shall not be directly or indirectly assembled as a part or subassembly in any finished product. For
+clarification, any software or software tools provided with the EVM (“Software”) shall not be subject to the terms and conditions
+set forth herein but rather shall be subject to the applicable terms that accompany such Software
+1.2 EVMs are not intended for consumer or household use. EVMs may not be sold, sublicensed, leased, rented, loaned, assigned,
+or otherwise distributed for commercial purposes by Users, in whole or in part, or used in any finished product or production
+system.
+2 Limited Warranty and Related Remedies/Disclaimers:
+2.1 These terms do not apply to Software. The warranty, if any, for Software is covered in the applicable Software License
+Agreement.
+2.2 TI warrants that the TI EVM will conform to TI's published specifications for ninety (90) days after the date TI delivers such EVM
+to User. Notwithstanding the foregoing, TI shall not be liable for a nonconforming EVM if (a) the nonconformity was caused by
+neglect, misuse or mistreatment by an entity other than TI, including improper installation or testing, or for any EVMs that have
+been altered or modified in any way by an entity other than TI, (b) the nonconformity resulted from User's design, specifications
+or instructions for such EVMs or improper system design, or (c) User has not paid on time. Testing and other quality control
+techniques are used to the extent TI deems necessary. TI does not test all parameters of each EVM.
+User's claims against TI under this Section 2 are void if User fails to notify TI of any apparent defects in the EVMs within ten (10)
+business days after delivery, or of any hidden defects with ten (10) business days after the defect has been detected.
+2.3 TI's sole liability shall be at its option to repair or replace EVMs that fail to conform to the warranty set forth above, or credit
+User's account for such EVM. TI's liability under this warranty shall be limited to EVMs that are returned during the warranty
+period to the address designated by TI and that are determined by TI not to conform to such warranty. If TI elects to repair or
+replace such EVM, TI shall have a reasonable time to repair such EVM or provide replacements. Repaired EVMs shall be
+warranted for the remainder of the original warranty period. Replaced EVMs shall be warranted for a new full ninety (90) day
+warranty period.
+WARNING
+Evaluation Kits are intended solely for use by technically qualified,
+professional electronics experts who are familiar with the dangers
+and application risks associated with handling electrical mechanical
+components, systems, and subsystems.
+User shall operate the Evaluation Kit within TI’s recommended
+guidelines and any applicable legal or environmental requirements
+as well as reasonable and customary safeguards. Failure to set up
+and/or operate the Evaluation Kit within TI’s recommended
+guidelines may result in personal injury or death or property
+damage. Proper set up entails following TI’s instructions for
+electrical ratings of interface circuits such as input, output and
+electrical loads.
+NOTE:
+EXPOSURE TO ELECTROSTATIC DISCHARGE (ESD) MAY CAUSE DEGREDATION OR FAILURE OF THE EVALUATION
+KIT; TI RECOMMENDS STORAGE OF THE EVALUATION KIT IN A PROTECTIVE ESD BAG.
+www.ti.com
+2
+3 Regulatory Notices:
+3.1 United States
+3.1.1 Notice applicable to EVMs not FCC-Approved:
+FCC NOTICE: This kit is designed to allow product developers to evaluate electronic components, circuitry, or software
+associated with the kit to determine whether to incorporate such items in a finished product and software developers to write
+software applications for use with the end product. This kit is not a finished product and when assembled may not be resold or
+otherwise marketed unless all required FCC equipment authorizations are first obtained. Operation is subject to the condition
+that this product not cause harmful interference to licensed radio stations and that this product accept harmful interference.
+Unless the assembled kit is designed to operate under part 15, part 18 or part 95 of this chapter, the operator of the kit must
+operate under the authority of an FCC license holder or must secure an experimental authorization under part 5 of this chapter.
+3.1.2 For EVMs annotated as FCC – FEDERAL COMMUNICATIONS COMMISSION Part 15 Compliant:
+CAUTION
+This device complies with part 15 of the FCC Rules. Operation is subject to the following two conditions: (1) This device may not
+cause harmful interference, and (2) this device must accept any interference received, including interference that may cause
+undesired operation.
+Changes or modifications not expressly approved by the party responsible for compliance could void the user's authority to
+operate the equipment.
+FCC Interference Statement for Class A EVM devices
+NOTE: This equipment has been tested and found to comply with the limits for a Class A digital device, pursuant to part 15 of
+the FCC Rules. These limits are designed to provide reasonable protection against harmful interference when the equipment is
+operated in a commercial environment. This equipment generates, uses, and can radiate radio frequency energy and, if not
+installed and used in accordance with the instruction manual, may cause harmful interference to radio communications.
+Operation of this equipment in a residential area is likely to cause harmful interference in which case the user will be required to
+correct the interference at his own expense.
+FCC Interference Statement for Class B EVM devices
+NOTE: This equipment has been tested and found to comply with the limits for a Class B digital device, pursuant to part 15 of
+the FCC Rules. These limits are designed to provide reasonable protection against harmful interference in a residential
+installation. This equipment generates, uses and can radiate radio frequency energy and, if not installed and used in accordance
+with the instructions, may cause harmful interference to radio communications. However, there is no guarantee that interference
+will not occur in a particular installation. If this equipment does cause harmful interference to radio or television reception, which
+can be determined by turning the equipment off and on, the user is encouraged to try to correct the interference by one or more
+of the following measures:
+• Reorient or relocate the receiving antenna.
+• Increase the separation between the equipment and receiver.
+• Connect the equipment into an outlet on a circuit different from that to which the receiver is connected.
+• Consult the dealer or an experienced radio/TV technician for help.
+3.2 Canada
+3.2.1 For EVMs issued with an Industry Canada Certificate of Conformance to RSS-210 or RSS-247
+Concerning EVMs Including Radio Transmitters:
+This device complies with Industry Canada license-exempt RSSs. Operation is subject to the following two conditions:
+(1) this device may not cause interference, and (2) this device must accept any interference, including interference that may
+cause undesired operation of the device.
+Concernant les EVMs avec appareils radio:
+Le présent appareil est conforme aux CNR d'Industrie Canada applicables aux appareils radio exempts de licence. L'exploitation
+est autorisée aux deux conditions suivantes: (1) l'appareil ne doit pas produire de brouillage, et (2) l'utilisateur de l'appareil doit
+accepter tout brouillage radioélectrique subi, même si le brouillage est susceptible d'en compromettre le fonctionnement.
+Concerning EVMs Including Detachable Antennas:
+Under Industry Canada regulations, this radio transmitter may only operate using an antenna of a type and maximum (or lesser)
+gain approved for the transmitter by Industry Canada. To reduce potential radio interference to other users, the antenna type
+and its gain should be so chosen that the equivalent isotropically radiated power (e.i.r.p.) is not more than that necessary for
+successful communication. This radio transmitter has been approved by Industry Canada to operate with the antenna types
+listed in the user guide with the maximum permissible gain and required antenna impedance for each antenna type indicated.
+Antenna types not included in this list, having a gain greater than the maximum gain indicated for that type, are strictly prohibited
+for use with this device.
+www.ti.com
+3
+Concernant les EVMs avec antennes détachables
+Conformément à la réglementation d'Industrie Canada, le présent émetteur radio peut fonctionner avec une antenne d'un type et
+d'un gain maximal (ou inférieur) approuvé pour l'émetteur par Industrie Canada. Dans le but de réduire les risques de brouillage
+radioélectrique à l'intention des autres utilisateurs, il faut choisir le type d'antenne et son gain de sorte que la puissance isotrope
+rayonnée équivalente (p.i.r.e.) ne dépasse pas l'intensité nécessaire à l'établissement d'une communication satisfaisante. Le
+présent émetteur radio a été approuvé par Industrie Canada pour fonctionner avec les types d'antenne énumérés dans le
+manuel d’usage et ayant un gain admissible maximal et l'impédance requise pour chaque type d'antenne. Les types d'antenne
+non inclus dans cette liste, ou dont le gain est supérieur au gain maximal indiqué, sont strictement interdits pour l'exploitation de
+l'émetteur
+3.3 Japan
+3.3.1 Notice for EVMs delivered in Japan: Please see http://www.tij.co.jp/lsds/ti_ja/general/eStore/notice_01.page 日本国内に
+輸入される評価用キット、ボードについては、次のところをご覧ください。
+http://www.tij.co.jp/lsds/ti_ja/general/eStore/notice_01.page
+3.3.2 Notice for Users of EVMs Considered “Radio Frequency Products” in Japan: EVMs entering Japan may not be certified
+by TI as conforming to Technical Regulations of Radio Law of Japan.
+If User uses EVMs in Japan, not certified to Technical Regulations of Radio Law of Japan, User is required to follow the
+instructions set forth by Radio Law of Japan, which includes, but is not limited to, the instructions below with respect to EVMs
+(which for the avoidance of doubt are stated strictly for convenience and should be verified by User):
+1. Use EVMs in a shielded room or any other test facility as defined in the notification #173 issued by Ministry of Internal
+Affairs and Communications on March 28, 2006, based on Sub-section 1.1 of Article 6 of the Ministry’s Rule for
+Enforcement of Radio Law of Japan,
+2. Use EVMs only after User obtains the license of Test Radio Station as provided in Radio Law of Japan with respect to
+EVMs, or
+3. Use of EVMs only after User obtains the Technical Regulations Conformity Certification as provided in Radio Law of Japan
+with respect to EVMs. Also, do not transfer EVMs, unless User gives the same notice above to the transferee. Please note
+that if User does not follow the instructions above, User will be subject to penalties of Radio Law of Japan.
+【無線電波を送信する製品の開発キットをお使いになる際の注意事項】 開発キットの中には技術基準適合証明を受けて
+いないものがあります。 技術適合証明を受けていないもののご使用に際しては、電波法遵守のため、以下のいずれかの
+措置を取っていただく必要がありますのでご注意ください。
+1. 電波法施行規則第6条第1項第1号に基づく平成18年3月28日総務省告示第173号で定められた電波暗室等の試験設備でご使用
+いただく。
+2. 実験局の免許を取得後ご使用いただく。
+3. 技術基準適合証明を取得後ご使用いただく。
+なお、本製品は、上記の「ご使用にあたっての注意」を譲渡先、移転先に通知しない限り、譲渡、移転できないものとします。
+上記を遵守頂けない場合は、電波法の罰則が適用される可能性があることをご留意ください。 日本テキサス・イ
+ンスツルメンツ株式会社
+東京都新宿区西新宿６丁目２４番１号
+西新宿三井ビル
+3.3.3 Notice for EVMs for Power Line Communication: Please see http://www.tij.co.jp/lsds/ti_ja/general/eStore/notice_02.page
+電力線搬送波通信についての開発キットをお使いになる際の注意事項については、次のところをご覧ください。http:/
+/www.tij.co.jp/lsds/ti_ja/general/eStore/notice_02.page
+3.4 European Union
+3.4.1 For EVMs subject to EU Directive 2014/30/EU (Electromagnetic Compatibility Directive):
+This is a class A product intended for use in environments other than domestic environments that are connected to a
+low-voltage power-supply network that supplies buildings used for domestic purposes. In a domestic environment this
+product may cause radio interference in which case the user may be required to take adequate measures.
+www.ti.com
+4
+4 EVM Use Restrictions and Warnings:
+4.1 EVMS ARE NOT FOR USE IN FUNCTIONAL SAFETY AND/OR SAFETY CRITICAL EVALUATIONS, INCLUDING BUT NOT
+LIMITED TO EVALUATIONS OF LIFE SUPPORT APPLICATIONS.
+4.2 User must read and apply the user guide and other available documentation provided by TI regarding the EVM prior to handling
+or using the EVM, including without limitation any warning or restriction notices. The notices contain important safety information
+related to, for example, temperatures and voltages.
+4.3 Safety-Related Warnings and Restrictions:
+4.3.1 User shall operate the EVM within TI’s recommended specifications and environmental considerations stated in the user
+guide, other available documentation provided by TI, and any other applicable requirements and employ reasonable and
+customary safeguards. Exceeding the specified performance ratings and specifications (including but not limited to input
+and output voltage, current, power, and environmental ranges) for the EVM may cause personal injury or death, or
+property damage. If there are questions concerning performance ratings and specifications, User should contact a TI
+field representative prior to connecting interface electronics including input power and intended loads. Any loads applied
+outside of the specified output range may also result in unintended and/or inaccurate operation and/or possible
+permanent damage to the EVM and/or interface electronics. Please consult the EVM user guide prior to connecting any
+load to the EVM output. If there is uncertainty as to the load specification, please contact a TI field representative.
+During normal operation, even with the inputs and outputs kept within the specified allowable ranges, some circuit
+components may have elevated case temperatures. These components include but are not limited to linear regulators,
+switching transistors, pass transistors, current sense resistors, and heat sinks, which can be identified using the
+information in the associated documentation. When working with the EVM, please be aware that the EVM may become
+very warm.
+4.3.2 EVMs are intended solely for use by technically qualified, professional electronics experts who are familiar with the
+dangers and application risks associated with handling electrical mechanical components, systems, and subsystems.
+User assumes all responsibility and liability for proper and safe handling and use of the EVM by User or its employees,
+affiliates, contractors or designees. User assumes all responsibility and liability to ensure that any interfaces (electronic
+and/or mechanical) between the EVM and any human body are designed with suitable isolation and means to safely
+limit accessible leakage currents to minimize the risk of electrical shock hazard. User assumes all responsibility and
+liability for any improper or unsafe handling or use of the EVM by User or its employees, affiliates, contractors or
+designees.
+4.4 User assumes all responsibility and liability to determine whether the EVM is subject to any applicable international, federal,
+state, or local laws and regulations related to User’s handling and use of the EVM and, if applicable, User assumes all
+responsibility and liability for compliance in all respects with such laws and regulations. User assumes all responsibility and
+liability for proper disposal and recycling of the EVM consistent with all applicable international, federal, state, and local
+requirements.
+5. Accuracy of Information: To the extent TI provides information on the availability and function of EVMs, TI attempts to be as accurate
+as possible. However, TI does not warrant the accuracy of EVM descriptions, EVM availability or other information on its websites as
+accurate, complete, reliable, current, or error-free.
+6. Disclaimers:
+6.1 EXCEPT AS SET FORTH ABOVE, EVMS AND ANY MATERIALS PROVIDED WITH THE EVM (INCLUDING, BUT NOT
+LIMITED TO, REFERENCE DESIGNS AND THE DESIGN OF THE EVM ITSELF) ARE PROVIDED "AS IS" AND "WITH ALL
+FAULTS." TI DISCLAIMS ALL OTHER WARRANTIES, EXPRESS OR IMPLIED, REGARDING SUCH ITEMS, INCLUDING BUT
+NOT LIMITED TO ANY EPIDEMIC FAILURE WARRANTY OR IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS
+FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT OF ANY THIRD PARTY PATENTS, COPYRIGHTS, TRADE
+SECRETS OR OTHER INTELLECTUAL PROPERTY RIGHTS.
+6.2 EXCEPT FOR THE LIMITED RIGHT TO USE THE EVM SET FORTH HEREIN, NOTHING IN THESE TERMS SHALL BE
+CONSTRUED AS GRANTING OR CONFERRING ANY RIGHTS BY LICENSE, PATENT, OR ANY OTHER INDUSTRIAL OR
+INTELLECTUAL PROPERTY RIGHT OF TI, ITS SUPPLIERS/LICENSORS OR ANY OTHER THIRD PARTY, TO USE THE
+EVM IN ANY FINISHED END-USER OR READY-TO-USE FINAL PRODUCT, OR FOR ANY INVENTION, DISCOVERY OR
+IMPROVEMENT, REGARDLESS OF WHEN MADE, CONCEIVED OR ACQUIRED.
+7. USER'S INDEMNITY OBLIGATIONS AND REPRESENTATIONS. USER WILL DEFEND, INDEMNIFY AND HOLD TI, ITS
+LICENSORS AND THEIR REPRESENTATIVES HARMLESS FROM AND AGAINST ANY AND ALL CLAIMS, DAMAGES, LOSSES,
+EXPENSES, COSTS AND LIABILITIES (COLLECTIVELY, "CLAIMS") ARISING OUT OF OR IN CONNECTION WITH ANY
+HANDLING OR USE OF THE EVM THAT IS NOT IN ACCORDANCE WITH THESE TERMS. THIS OBLIGATION SHALL APPLY
+WHETHER CLAIMS ARISE UNDER STATUTE, REGULATION, OR THE LAW OF TORT, CONTRACT OR ANY OTHER LEGAL
+THEORY, AND EVEN IF THE EVM FAILS TO PERFORM AS DESCRIBED OR EXPECTED.
+www.ti.com
+5
+8. Limitations on Damages and Liability:
+8.1 General Limitations. IN NO EVENT SHALL TI BE LIABLE FOR ANY SPECIAL, COLLATERAL, INDIRECT, PUNITIVE,
+INCIDENTAL, CONSEQUENTIAL, OR EXEMPLARY DAMAGES IN CONNECTION WITH OR ARISING OUT OF THESE
+TERMS OR THE USE OF THE EVMS , REGARDLESS OF WHETHER TI HAS BEEN ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGES. EXCLUDED DAMAGES INCLUDE, BUT ARE NOT LIMITED TO, COST OF REMOVAL OR
+REINSTALLATION, ANCILLARY COSTS TO THE PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, RETESTING,
+OUTSIDE COMPUTER TIME, LABOR COSTS, LOSS OF GOODWILL, LOSS OF PROFITS, LOSS OF SAVINGS, LOSS OF
+USE, LOSS OF DATA, OR BUSINESS INTERRUPTION. NO CLAIM, SUIT OR ACTION SHALL BE BROUGHT AGAINST TI
+MORE THAN TWELVE (12) MONTHS AFTER THE EVENT THAT GAVE RISE TO THE CAUSE OF ACTION HAS
+OCCURRED.
+8.2 Specific Limitations. IN NO EVENT SHALL TI'S AGGREGATE LIABILITY FROM ANY USE OF AN EVM PROVIDED
+HEREUNDER, INCLUDING FROM ANY WARRANTY, INDEMITY OR OTHER OBLIGATION ARISING OUT OF OR IN
+CONNECTION WITH THESE TERMS, , EXCEED THE TOTAL AMOUNT PAID TO TI BY USER FOR THE PARTICULAR
+EVM(S) AT ISSUE DURING THE PRIOR TWELVE (12) MONTHS WITH RESPECT TO WHICH LOSSES OR DAMAGES ARE
+CLAIMED. THE EXISTENCE OF MORE THAN ONE CLAIM SHALL NOT ENLARGE OR EXTEND THIS LIMIT.
+9. Return Policy. Except as otherwise provided, TI does not offer any refunds, returns, or exchanges. Furthermore, no return of EVM(s)
+will be accepted if the package has been opened and no return of the EVM(s) will be accepted if they are damaged or otherwise not in
+a resalable condition. If User feels it has been incorrectly charged for the EVM(s) it ordered or that delivery violates the applicable
+order, User should contact TI. All refunds will be made in full within thirty (30) working days from the return of the components(s),
+excluding any postage or packaging costs.
+10. Governing Law: These terms and conditions shall be governed by and interpreted in accordance with the laws of the State of Texas,
+without reference to conflict-of-laws principles. User agrees that non-exclusive jurisdiction for any dispute arising out of or relating to
+these terms and conditions lies within courts located in the State of Texas and consents to venue in Dallas County, Texas.
+Notwithstanding the foregoing, any judgment may be enforced in any United States or foreign court, and TI may seek injunctive relief
+in any United States or foreign court.
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265
+Copyright © 2019, Texas Instruments Incorporated
+IMPORTANT NOTICE AND DISCLAIMER
+TI PROVIDES TECHNICAL AND RELIABILITY DATA (INCLUDING DATASHEETS), DESIGN RESOURCES (INCLUDING REFERENCE 
+DESIGNS), APPLICATION OR OTHER DESIGN ADVICE, WEB TOOLS, SAFETY INFORMATION, AND OTHER RESOURCES “AS IS” 
+AND WITH ALL FAULTS, AND DISCLAIMS ALL WARRANTIES, EXPRESS AND IMPLIED, INCLUDING WITHOUT LIMITATION ANY 
+IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT OF THIRD 
+PARTY INTELLECTUAL PROPERTY RIGHTS.
+These resources are intended for skilled developers designing with TI products. You are solely responsible for (1) selecting the appropriate 
+TI products for your application, (2) designing, validating and testing your application, and (3) ensuring your application meets applicable 
+standards, and any other safety, security, regulatory or other requirements.
+These resources are subject to change without notice. TI grants you permission to use these resources only for development of an 
+application that uses the TI products described in the resource. Other reproduction and display of these resources is prohibited. No license 
+is granted to any other TI intellectual property right or to any third party intellectual property right. TI disclaims responsibility for, and you fully 
+indemnify TI and its representatives against any claims, damages, costs, losses, and liabilities arising out of your use of these resources.
+TI’s products are provided subject to TI’s Terms of Sale, TI’s General Quality Guidelines, or other applicable terms available either on 
+ti.com or provided in conjunction with such TI products. TI’s provision of these resources does not expand or otherwise alter TI’s applicable 
+warranties or warranty disclaimers for TI products. Unless TI explicitly designates a product as custom or customer-specified, TI products 
+are standard, catalog, general purpose devices.
+TI objects to and rejects any additional or different terms you may propose.
+IMPORTANT NOTICE
+Copyright © 2026, Texas Instruments Incorporated
+Last updated 10/2025

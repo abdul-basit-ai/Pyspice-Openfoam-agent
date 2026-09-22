@@ -1,0 +1,18 @@
+evm_id: lm27402_evm
+controller: LM27402S (in library as LM27402MHX family)
+vin_v: 12.0
+vout_v: 1.5
+iout_max_a: 20.0
+fsw_hz: 300000    # UG section 9: "selected to be 300 kHz"
+ambient_c: null   # NOT stated in SNVA406C for the efficiency figure
+airflow: unknown  # NOT stated anywhere in SNVA406C
+notes: >
+  Efficiency vs Load (Figure 6-1) plots VIN = 12 V and VIN = 5 V curves,
+  VOUT = 1.5 V, 0-20 A. Gate drive: BOM lists RDS(ON) at 4.5 V for both
+  FETs, consistent with the LM27402 ~5-V VDD drive rail; the pipeline's
+  5-V behavioral drive matches. EVM uses DCR current sensing (no shunt).
+unmatched_factors:
+  - gate_drive_behavioral_5v      # rig drives ideal switches at 5 V, no driver IC
+  - no_input_rail_loss            # measured P_in includes upstream wiring the rig lacks
+  - ripple_esr_assumed            # Kemet cap ESR at 300 kHz not published; see bom.yaml note
+thermal_in_scope: false          # airflow/ambient unstated -> electrical-only per plan step 4
