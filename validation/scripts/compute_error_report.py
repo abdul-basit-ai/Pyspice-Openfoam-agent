@@ -112,6 +112,7 @@ def process_evm(evm_id: str) -> dict:
         "skipped_nan": skipped_nan,
         "thermal_in_scope": tc.get("thermal_in_scope", False),
         "injection_caveat": tc.get("injection_caveat"),
+        "superseded": tc.get("superseded_result"),
         "topology": tc.get("topology", "buck"),
         "sourcing": _sourcing_breakdown(d), "sens": sens, "png": png,
         "n_failed_runs": sum(1 for r in _load_csv(d / "sim_results.csv")
@@ -178,11 +179,13 @@ def main() -> None:
             "|---|---|---|---|---|---|",
         ]
         for p in r["pairs"]:
-            flag = "  (exceeds 2x digitization uncertainty)" \
+            # the uncertainty-exceeded flag lives INSIDE the last cell so
+            # every table row still ends with the pipe (read-back verified)
+            flag = " (exceeds 2x digitization uncertainty)" \
                 if abs(p["err"]) > 2 * p["unc"] else ""
             lines.append(
                 f"| {p['load']:g} | {p['meas']:.2f} | {p['sim']:.2f} | "
-                f"{p['err']:+.2f} | +/-{p['unc']:.1f} | {p['ripple_mv']} |{flag}")
+                f"{p['err']:+.2f} | +/-{p['unc']:.1f} | {p['ripple_mv']}{flag} |")
         lines += [
             "",
             f"Mean absolute error: {r['mae_pp']:.2f} pp. Worst point: "
@@ -207,6 +210,9 @@ def main() -> None:
         if r["n_failed_runs"]:
             lines.append(f"Failed runs: {r['n_failed_runs']} "
                          "(recorded in sim_results.csv notes).")
+        if r.get("superseded"):
+            lines += ["", "Superseded result (kept for transparency): "
+                      + " ".join(r["superseded"].split())]
         if r.get("injection_caveat"):
             lines += ["", f"Topology-match caveat: {r['injection_caveat']}"]
         if not r["thermal_in_scope"]:
@@ -256,7 +262,10 @@ def main() -> None:
     rej = HERE / "evms" / "REJECTED.md"
     lines += ["", "## Rejected EVM candidates", ""]
     if rej.exists():
-        lines.append(rej.read_text(encoding="utf-8").strip())
+        # fold the log in without a nested H1 (renders cleanly)
+        body = rej.read_text(encoding="utf-8").strip()
+        body = body.replace("# Rejected / deferred EVM candidates", "", 1)
+        lines.append(body.strip())
     else:
         lines.append("_None recorded yet._")
 
@@ -284,8 +293,30 @@ def main() -> None:
     ]
 
     out = HERE / "error_report.md"
-    out.write_text("\n".join(lines), encoding="utf-8")
-    print(f"wrote {out} ({out.stat().st_size} bytes)")
+    text = "\n".join(lines) + "\n"
+    # Part 0 (recurring text corruption): never leave a stale or mojibake
+    # file behind. Write atomically (ASCII-strict), then read the file BACK
+    # and validate: byte-identical read-back, pure ASCII, no accidental
+    # 'None' cells, every table row starts and ends with the pipe character.
+    # mojibake guard: normalize the usual non-ASCII suspects to ASCII
+    for a, b in (("—", "--"), ("–", "-"), ("±", "+/-"),
+                 ("°", " deg"), ("µ", "u"), ("→", "->"),
+                 ("’", "'"), ("“", '"'), ("”", '"')):
+        text = text.replace(a, b)
+    tmp = out.with_suffix(".md.tmp")
+    tmp.write_text(text, encoding="ascii", errors="strict")
+    back = tmp.read_text(encoding="ascii")
+    bad_rows = [i + 1 for i, ln in enumerate(back.splitlines())
+                if ln.startswith("|") and not ln.rstrip().endswith("|")]
+    stray_none = sum(1 for ln in back.splitlines() if "| None |" in ln)
+    non_ascii = sorted({c for c in back if ord(c) > 127})
+    assert back == text, "read-back mismatch after write"
+    assert not bad_rows, f"malformed table rows at lines {bad_rows}"
+    assert stray_none == 0, f"{stray_none} 'None' table cells leaked"
+    assert not non_ascii, f"non-ASCII characters leaked: {non_ascii[:5]}"
+    tmp.replace(out)
+    print(f"wrote {out} ({len(back.splitlines())} lines, "
+          f"{out.stat().st_size} bytes, ASCII-clean, read back OK)")
     for r in results:
         print(f"  {r['evm_id']} [{r['topology']}]: MAE {r['mae_pp']:.2f} pp, "
               f"{len(r['pairs'])} points, worst {r['worst']['err']:+.2f} @ "

@@ -3,7 +3,7 @@
 # all four switches: BSZ042N06NS (the 60-V part) - conservative, see
 # test_conditions.unmatched_factors.
 mosfets:
-  - role: all_four_switches
+  - role: leg1   # QH1/QL1 - VIN-side leg (BSZ042N06NS, 60 V part)
     part_number: BSZ042N06NS
     manufacturer: Infineon
     status_fields:
@@ -18,6 +18,28 @@ mosfets:
       Qrr: {value: null, source: published_null}
       V_F: {value: 0.7, source: pipeline_estimate, note: "schema default"}
       Id_max: {value: 40.0, source: published, note: "BOM/package rating (silicon-limited 98 A)"}
+      package: PG-TSDSON-8
+      die_x_mm: {value: 3.3, source: published}
+      die_y_mm: {value: 3.3, source: published}
+      die_z_mm: {value: 1.0, source: pipeline_estimate}
+      R_theta_jc: {value: 1.4, source: sentinel, note: "unused - thermal out of scope"}
+      R_theta_ja: {value: 50.0, source: sentinel, note: "unused"}
+
+  - role: leg2   # QH2/QL2 - VOUT-side leg (BSZ0902NS, 30 V part)
+    part_number: BSZ0902NS
+    manufacturer: Infineon
+    status_fields:
+      Vds_max: {value: 30.0, source: published}
+      Rds_on: {value: 0.0026, source: published, note: "max @ 10 V (Mouser/Infineon: 2.8 mOhm @ 4.5 V)"}
+      Qg: {value: 26e-9, source: published, note: "@ 10 V (Mouser/DigiKey table)"}
+      Qgd: {value: 5e-9, source: pipeline_estimate, note: "not surfaced in indexed table rows; REQUIRED by schema - estimate, unused by the loss model for the LS role (only the hard-switch crossover uses Qgd, which is the leg-1 part here)"}
+      V_plateau: {value: 2.8, source: pipeline_estimate, note: "not tabulated; Vth typ 2.0 V + headroom; UNUSED by the loss model for the LS role"}
+      Ciss: {value: 1700e-12, source: published, note: "@ 15 V, 1 MHz"}
+      Coss: {value: null, source: published_null, note: "not surfaced"}
+      Crss: {value: null, source: published_null}
+      Qrr: {value: null, source: published_null}
+      V_F: {value: 0.7, source: pipeline_estimate, note: "schema default; unused for the LS role only in the crossover term"}
+      Id_max: {value: 106.0, source: published}
       package: PG-TSDSON-8
       die_x_mm: {value: 3.3, source: published}
       die_y_mm: {value: 3.3, source: published}

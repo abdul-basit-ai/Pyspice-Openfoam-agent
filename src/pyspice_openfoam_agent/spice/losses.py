@@ -248,6 +248,7 @@ def extract_losses(
     settle_time: float,
     cap_esr: float = 0.0,
     iout: float | None = None,
+    mosfet_ls: MOSFET | None = None,
 ) -> LossBreakdown:
     """Compute per-device losses from one steady-state transient result.
 
@@ -315,14 +316,24 @@ def extract_losses(
     v_sw = v_sw[steady_mask]
 
     hs_on, ls_on = _switch_masks(v_sw, level_hi, np.ones_like(t, dtype=bool), topology)
-    ron = mosfet.Rds_on
 
-    # buck_boost: each phase carries i_L through TWO series switches
-    # (charge: HS+LS_B; discharge: LS_A+SYNC), so each phase's conduction
-    # integral counts two dies (audit fix: was 2x undercounted).
-    n_series = 2.0 if topology == "buck_boost" else 1.0
-    p_hs_cond = n_series * _masked_mean_power(t, i_l**2 * ron, hs_on)
-    p_ls_cond = n_series * _masked_mean_power(t, i_l**2 * ron, ls_on)
+    # Per-switch support: mosfet_ls (when given) is the OTHER switch
+    # position's part. The mask that carries the HARD device uses mosfet's
+    # Ron; the mask that carries the SYNC device uses mosfet_ls's Ron.
+    ls_part = mosfet_ls if mosfet_ls is not None else mosfet
+    ron_hard = mosfet.Rds_on
+    ron_sync = ls_part.Rds_on
+
+    if topology == "buck_boost":
+        # each phase carries i_L through TWO series switches of its OWN leg
+        # (charge: HS+LS_B both leg-1 parts; discharge: LS_A+SYNC both leg-2)
+        p_hs_cond = _masked_mean_power(
+            t, i_l**2 * (ron_hard + ron_hard), hs_on)
+        p_ls_cond = _masked_mean_power(
+            t, i_l**2 * (ron_sync + ron_sync), ls_on)
+    else:
+        p_hs_cond = _masked_mean_power(t, i_l**2 * ron_hard, hs_on)
+        p_ls_cond = _masked_mean_power(t, i_l**2 * ron_sync, ls_on)
     p_dcr = _masked_mean_power(t, i_l**2 * inductor_dcr, np.ones_like(t, dtype=bool))
 
     # --- capacitor ESR loss (Phase 9: losses localized by component) ---
@@ -377,16 +388,17 @@ def extract_losses(
     # dead time comes from the SAME builder function the netlist was generated
     # with, so the loss model can never drift from the simulated gate timing
     # (audit fix: stale getattr default).
-    t_dead = dead_time_for(mosfet)
-    p_ls_diode = mosfet.V_F * abs(i_on + i_off) / 2.0 * 3.0 * t_dead * fsw
-    qrr = mosfet.Qrr if mosfet.Qrr else 0.0
+    t_dead = max(dead_time_for(mosfet), dead_time_for(ls_part))
+    p_ls_diode = ls_part.V_F * abs(i_on + i_off) / 2.0 * 3.0 * t_dead * fsw
+    qrr = ls_part.Qrr if ls_part.Qrr else 0.0
     p_ls_rr = qrr * v_block * fsw
     p_ls_switching = p_ls_diode + p_ls_rr  # body-diode + reverse-recovery
 
     # Gate-drive loss: one driver per driven switch — 2 for buck/boost,
-    # 4 for the 4-switch buck_boost (audit fix).
+    # 4 for the 4-switch buck_boost (audit fix) — each at its own part's Qg.
     n_drivers = 4.0 if topology == "buck_boost" else 2.0
-    p_gate = n_drivers * mosfet.Qg * GATE_DRIVE_V * fsw
+    p_gate = ((n_drivers / 2.0) * mosfet.Qg
+              + (n_drivers / 2.0) * ls_part.Qg) * GATE_DRIVE_V * fsw
 
     dl = DeviceLosses(
         hs_conduction=p_hs_cond,

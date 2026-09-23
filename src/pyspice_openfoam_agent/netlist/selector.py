@@ -52,9 +52,17 @@ class SelectionError(ValueError):
 class SelectedComponents:
     """Real parts chosen for one sizing result, plus any selection-time warnings."""
 
-    mosfet: MOSFET  # same part number used for both switches (synchronous topology)
+    mosfet: MOSFET  # primary switch part (HS for buck/boost; leg-1 for buck_boost)
     inductor: Inductor
     capacitor: Capacitor
+    # Per-switch support: an OPTIONAL second part for the other switch
+    # position(s). Role mapping per topology:
+    #   buck        mosfet = HS,            mosfet_second = LS
+    #   boost       mosfet = ctrl (hard),   mosfet_second = sync
+    #   buck_boost  mosfet = leg-1 (HS+LS_B), mosfet_second = leg-2 (LS_A+SYNC)
+    # None (default) applies the primary part to every switch, preserving the
+    # historical single-part behavior.
+    mosfet_second: MOSFET | None = None
     # Phase 5 ICs (BOM lines only — the SPICE rig stays behavioral with ideal
     # switches, so the netlist never references these parts):
     gate_driver: GateDriver | None = None

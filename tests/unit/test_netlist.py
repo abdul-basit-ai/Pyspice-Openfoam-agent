@@ -144,7 +144,7 @@ def test_dead_time_gates_never_overlap() -> None:
     from pyspice_openfoam_agent.netlist.builder import _switch_pair, _DEAD_TIME_DEFAULT_S
     Tsw = 1e-6  # 1 MHz
     D = 0.5
-    pair = _switch_pair("hs", "ls", 0.0014, D, Tsw)
+    pair = _switch_pair("hs", "ls", 0.0014, None, D, Tsw)
     # parse the two PULSE(...) delay + width args: PULSE(V1 V2 Td Tr Tf Pw Per)
     import re
     pulses = re.findall(r"PULSE\(\S+ \S+ (\S+) (\S+) (\S+) (\S+) (\S+)\)", pair)

@@ -100,6 +100,20 @@ def _cap_branch(node_in: str, node_out: str, C: float, ESR: float, ESL: float, r
     return f"C{ref} {node_in} {ref}_esr {_fmt(C)}\nResr{ref} {ref}_esr {node_out} {_fmt(ESR)}"
 
 
+def _switch_parts(sel) -> list:
+    """Distinct MOSFET parts for the switch positions of this design.
+
+    Per-switch support: sel.mosfet_second (when set) is the OTHER position's
+    part - HS/LS for buck/boost, leg-2 for the 4-switch buck-boost. With no
+    second part this returns [sel.mosfet] and every downstream path behaves
+    exactly as the historical single-part design did."""
+    parts = [sel.mosfet]
+    second = getattr(sel, "mosfet_second", None)
+    if second is not None and second.part_number != sel.mosfet.part_number:
+        parts.append(second)
+    return parts
+
+
 def _switch_model_name(tag: str) -> str:
     """Single source of truth for a switch's .model name, so the device line
     that references it (written separately in each topology builder) and the
@@ -123,7 +137,8 @@ def _body_diode_models() -> str:
     return ".model Dbody D(Is=1e-9 N=1.0 Cjo=0.0 Vj=0.7 M=0.33)"
 
 
-def _switch_pair(hs_name: str, ls_name: str, Rds_on: float, D: float, Tsw: float,
+def _switch_pair(hs_name: str, ls_name: str, hs_Rds_on: float,
+                 ls_Rds_on: float | None, D: float, Tsw: float,
                  td_s: float | None = None) -> str:
     """Complementary non-overlap dead-time gate pair (.models + PWM drives).
 
@@ -159,8 +174,8 @@ def _switch_pair(hs_name: str, ls_name: str, Rds_on: float, D: float, Tsw: float
             )
     return "\n".join(
         [
-            f".model {_switch_model_name(hs_name)} SW(Ron={_fmt(Rds_on)} Roff=1e9 Vt=2.5 Vh=0.1)",
-            f".model {_switch_model_name(ls_name)} SW(Ron={_fmt(Rds_on)} Roff=1e9 Vt=2.5 Vh=0.1)",
+            f".model {_switch_model_name(hs_name)} SW(Ron={_fmt(hs_Rds_on)} Roff=1e9 Vt=2.5 Vh=0.1)",
+            f".model {_switch_model_name(ls_name)} SW(Ron={_fmt(ls_Rds_on if ls_Rds_on is not None else hs_Rds_on)} Roff=1e9 Vt=2.5 Vh=0.1)",
             f"Vgate_{hs_name} gate_{hs_name} 0 DC 5 PULSE(0 5 0 {_fmt(_GATE_RISE_FALL)} "
             f"{_fmt(_GATE_RISE_FALL)} {_fmt(t_hs_off)} {_fmt(Tsw)})",
             f"Vgate_{ls_name} gate_{ls_name} 0 DC 0 PULSE(0 5 {_fmt(t_ls_on)} {_fmt(_GATE_RISE_FALL)} "
@@ -173,7 +188,7 @@ def _build_buck(spec: Spec, sizing: SizingResult, sel: SelectedComponents,
                 charge_trim: float = 1.0) -> str:
     Tsw = 1.0 / spec.fsw
     Rload = spec.Vout / spec.Iout
-    td = _dead_time(sel)
+    td = max(dead_time_for(p) for p in _switch_parts(sel))
     # Soft-start: ramp the input rail 0 -> Vin over t_ss (>=300*Tsw) so the
     # LC output tank is charged gently, eliminating startup overshoot (task
     # bug #3). Open-loop fixed-D: ramping V_in is the correct gentle excitation.
@@ -193,7 +208,9 @@ def _build_buck(spec: Spec, sizing: SizingResult, sel: SelectedComponents,
         "Dhs sw in Dbody",
         "Dls 0 sw Dbody",
         _body_diode_models(),
-        _switch_pair("hs", "ls", sel.mosfet.Rds_on, D_cmd, Tsw, td_s=td),
+        _switch_pair("hs", "ls", sel.mosfet.Rds_on,
+                     (sel.mosfet_second.Rds_on if sel.mosfet_second else None),
+                     D_cmd, Tsw, td_s=td),
         "",
         "* Output filter inductor with real DCR in series",
         f"Lout sw lx {_fmt(sel.inductor.L)}",
@@ -216,7 +233,7 @@ def _build_boost(spec: Spec, sizing: SizingResult, sel: SelectedComponents,
                  charge_trim: float = 1.0) -> str:
     Tsw = 1.0 / spec.fsw
     Rload = spec.Vout / spec.Iout
-    td = _dead_time(sel)
+    td = max(dead_time_for(p) for p in _switch_parts(sel))
     t_ss = _soft_start_s(Tsw)
     D_cmd = sizing.D * charge_trim
     lines = [
@@ -237,7 +254,9 @@ def _build_boost(spec: Spec, sizing: SizingResult, sel: SelectedComponents,
         "Dctrl 0 sw Dbody",
         "Dsync sw out Dbody",
         _body_diode_models(),
-        _switch_pair("ctrl", "sync", sel.mosfet.Rds_on, D_cmd, Tsw, td_s=td),
+        _switch_pair("ctrl", "sync", sel.mosfet.Rds_on,
+                     (sel.mosfet_second.Rds_on if sel.mosfet_second else None),
+                     D_cmd, Tsw, td_s=td),
         "",
         "* Output capacitor with real ESR (+ ESL) in series",
         _cap_branch("out", "0", sel.capacitor.C, sel.capacitor.ESR, sel.capacitor.ESL, "out"),
@@ -280,7 +299,7 @@ def _build_buck_boost(spec: Spec, sizing: SizingResult, sel: SelectedComponents,
     """
     Tsw = 1.0 / spec.fsw
     Rload = spec.Vout / spec.Iout
-    td = _dead_time(sel)
+    td = max(dead_time_for(p) for p in _switch_parts(sel))
     t_ss = _soft_start_s(Tsw)
     dt_charge = sizing.D * charge_trim * Tsw
     D_cmd = sizing.D * charge_trim
@@ -302,12 +321,21 @@ def _build_buck_boost(spec: Spec, sizing: SizingResult, sel: SelectedComponents,
                 f"at fsw={spec.fsw / 1e3:.0f} kHz."
             )
     mod = {tag: _switch_model_name(tag) for tag in ("hs", "ls_a", "ls_b", "sync")}
+    second = sel.mosfet_second
+    # leg-1 (HS + LS_B: the charge-phase pair) carries the primary part;
+    # leg-2 (LS_A + SYNC: the discharge-phase pair) carries the optional
+    # second part (per-switch support). Default: primary everywhere.
+    leg_ron = {"hs": sel.mosfet.Rds_on, "ls_b": sel.mosfet.Rds_on,
+               "ls_a": (second.Rds_on if second else sel.mosfet.Rds_on),
+               "sync": (second.Rds_on if second else sel.mosfet.Rds_on)}
     sw_model = lambda tag: (  # noqa: E731
-        f".model {mod[tag]} SW(Ron={_fmt(sel.mosfet.Rds_on)} Roff=1e9 Vt=2.5 Vh=0.1)"
+        f".model {mod[tag]} SW(Ron={_fmt(leg_ron[tag])} Roff=1e9 Vt=2.5 Vh=0.1)"
     )
     lines = [
-        f"Buck-boost converter - Phase 3 synthesized netlist ({sel.mosfet.part_number}, "
-        f"{sel.inductor.part_number}, {sel.capacitor.part_number})",
+        f"Buck-boost converter - Phase 3 synthesized netlist "
+        f"({sel.mosfet.part_number} leg-1"
+        + (f" / {second.part_number} leg-2" if second else "")
+        + f", {sel.inductor.part_number}, {sel.capacitor.part_number})",
         "* 4-switch non-inverting topology at +|Vout| (see docstring correction note)",
         f"* Soft-start: input PWL 0 0, t_ss {t_ss:.3g} -> {_fmt(spec.Vin)} V "
         f"({int(t_ss/Tsw)} switching periods)",

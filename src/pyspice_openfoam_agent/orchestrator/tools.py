@@ -899,6 +899,7 @@ def extract_losses_for(ctx: ToolContext, run):
         vin=ctx.spec.Vin, vout=ctx.spec.Vout, fsw=ctx.spec.fsw,
         topology=ctx.sizing.topology, settle_time=run.steady_state.cycle_time,
         cap_esr=ctx.selected.capacitor.ESR, iout=ctx.spec.Iout,
+        mosfet_ls=getattr(ctx.selected, "mosfet_second", None),
     )
 
 
@@ -933,6 +934,7 @@ def tool_run_thermal(ctx: ToolContext, v_in_m_s: float | None = None,
                 ctx.selected.inductor.DCR,
                 vin=ctx.spec.Vin, vout=ctx.spec.Vout, fsw=ctx.spec.fsw,
                 topology=ctx.sizing.topology, settle_time=tran.steady_state.cycle_time,
+                mosfet_ls=getattr(ctx.selected, "mosfet_second", None),
                 cap_esr=ctx.selected.capacitor.ESR, iout=ctx.spec.Iout,
             )
         geo = build_board_geometry(ctx.selected.mosfet)

@@ -66,8 +66,6 @@ def build_fixed_context(evm_id: str, run_dir: Path, iout: float,
                          / "test_conditions.yaml").read_text(encoding="utf-8"))
 
     hs = _mosfet(e["mosfets"][0])
-    # buck_boost injections use ONE part for all four switches (see the
-    # single_mosfet_injection unmatched factor) — a second entry is optional
     ls = _mosfet(e["mosfets"][1]) if len(e["mosfets"]) > 1 else hs
     if plateau_scale != 1.0:
         # sensitivity check (plan Part A item 4): the plateau voltage is a
@@ -100,10 +98,13 @@ def build_fixed_context(evm_id: str, run_dir: Path, iout: float,
     # sizing feeds the builder its nominal duty; the servo re-trims it anyway
     sizing = size(spec)
     ctx.spec, ctx.sizing = spec, sizing
-    ctx.selected = SelectedComponents(mosfet=hs, inductor=inductor,
-                                      capacitor=cap,
-                                      notes=["EVM-exact injection (plan step 3): "
-                                             "select_components bypassed"])
+    per_switch = len(e["mosfets"]) > 1
+    ctx.selected = SelectedComponents(
+        mosfet=hs, mosfet_second=(ls if per_switch else None),
+        inductor=inductor, capacitor=cap,
+        notes=["EVM-exact injection (plan step 3): select_components bypassed"
+               + (" (per-switch: leg1=BSZ042N06NS, leg2=BSZ0902NS)"
+                  if per_switch and evm_id == "lm5175evm_hd" else "")])
     return ctx
 
 
