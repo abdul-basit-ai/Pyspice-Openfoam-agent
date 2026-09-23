@@ -26,7 +26,8 @@ def main() -> int:
     evm = sys.argv[1] if len(sys.argv) > 1 else "lm27402_evm"
     loads = [float(x) for x in sys.argv[2].split(",")] if len(sys.argv) > 2 \
         else list(range(2, 20))
-    out_csv = EVM / "sim_results.csv"
+    evm_id = sys.argv[1] if len(sys.argv) > 1 else "lm27402_evm"
+    out_csv = HERE / "evms" / evm_id / "sim_results.csv"
     done: set[float] = set()
     if out_csv.exists():
         with open(out_csv, encoding="utf-8") as f:
@@ -40,7 +41,7 @@ def main() -> int:
                         "sim_temp_c", "run_index", "note"])
         for load in loads:
             if load in done:
-                print(f"[skip] {load} A already in {out_csv.name}", flush=True)
+                print(f"[skip] {load} A already in {out_csv}", flush=True)
                 continue
             t0 = time.time()
             res = run_point(evm, load, Path(tempfile.mkdtemp(prefix=f"val_{evm}_")))

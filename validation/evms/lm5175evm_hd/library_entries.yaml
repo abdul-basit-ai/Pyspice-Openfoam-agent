@@ -1,0 +1,42 @@
+# Phase 1 schema entries for the EVM power path (SNVU439 section 8.3).
+# Source flags as in lm27402_evm. The injected model uses ONE MOSFET for
+# all four switches: BSZ042N06NS (the 60-V part) - conservative, see
+# test_conditions.unmatched_factors.
+mosfets:
+  - role: all_four_switches
+    part_number: BSZ042N06NS
+    manufacturer: Infineon
+    status_fields:
+      Vds_max: {value: 60.0, source: published}
+      Rds_on: {value: 0.0042, source: published, note: "max @ 10 V, Infineon official"}
+      Qg: {value: 32e-9, source: published, note: "max @ 10 V (typ 27 nC), Farnell-hosted datasheet table"}
+      Qgd: {value: 7e-9, source: pipeline_estimate, note: "not surfaced in indexed table rows; OptiMOS 60V 4.2 mOhm class value; SENSITIVITY: shifts modeled crossover ~40 pct (it is the numerator) - flagged in error_report"}
+      V_plateau: {value: 4.4, source: published, note: "typ, Farnell-hosted datasheet table (same test block as Qg)"}
+      Ciss: {value: 2500e-12, source: published, note: "max @ VDS=30V, 1MHz (typ 2000 pF)"}
+      Coss: {value: null, source: published_null}
+      Crss: {value: null, source: published_null}
+      Qrr: {value: null, source: published_null}
+      V_F: {value: 0.7, source: pipeline_estimate, note: "schema default"}
+      Id_max: {value: 40.0, source: published, note: "BOM/package rating (silicon-limited 98 A)"}
+      package: PG-TSDSON-8
+      die_x_mm: {value: 3.3, source: published}
+      die_y_mm: {value: 3.3, source: published}
+      die_z_mm: {value: 1.0, source: pipeline_estimate}
+      R_theta_jc: {value: 1.4, source: sentinel, note: "unused - thermal out of scope"}
+      R_theta_ja: {value: 50.0, source: sentinel, note: "unused"}
+inductor:
+  part_number: "7443551370"
+  manufacturer: Wurth
+  status_fields:
+    L: {value: 3.7e-6, source: published}
+    DCR: {value: 0.0049, source: published}
+    Isat: {value: 16.0, source: published, note: "BOM: 16 A Isat"}
+    Irms: {value: 16.0, source: sentinel, note: "set equal to Isat to satisfy the schema sanity check; UNUSED by simulated physics (screening bypassed)"}
+output_capacitor_bank:
+  part_number: "6x C1210C106K5RACTU"
+  qty: 6
+  status_fields:
+    C: {value: 60e-6, source: derived, note: "6 x 10 uF published"}
+    ESR: {value: 0.0022, source: derived, note: "each cap ESR = DF x Xc = 0.10 x 1/(2*pi*120*10uF) = 13.3 mOhm (published DF 10% @ 120 Hz); 6 parallel -> /6 = 2.2 mOhm. ESR @ 400 kHz unpublished - unmatched factor"}
+    V_rated: {value: 50.0, source: published}
+    Irms_max: {value: 1000.0, source: sentinel, note: "unused"}

@@ -66,7 +66,9 @@ def build_fixed_context(evm_id: str, run_dir: Path, iout: float,
                          / "test_conditions.yaml").read_text(encoding="utf-8"))
 
     hs = _mosfet(e["mosfets"][0])
-    ls = _mosfet(e["mosfets"][1])
+    # buck_boost injections use ONE part for all four switches (see the
+    # single_mosfet_injection unmatched factor) — a second entry is optional
+    ls = _mosfet(e["mosfets"][1]) if len(e["mosfets"]) > 1 else hs
     if plateau_scale != 1.0:
         # sensitivity check (plan Part A item 4): the plateau voltage is a
         # documented pipeline_estimate; perturbing it +-20% moves the modeled
@@ -90,7 +92,8 @@ def build_fixed_context(evm_id: str, run_dir: Path, iout: float,
     )
 
     spec = Spec(Vin=tc["vin_v"], Vout=tc["vout_v"], Iout=iout,
-                fsw=tc["fsw_hz"], Vripple=0.015, topology_constraint="buck")
+                fsw=tc["fsw_hz"], Vripple=0.015,
+                topology_constraint=tc.get("topology", "buck"))
     ctx = ToolContext(run_dir=run_dir,
                       library=type("L", (), {"mosfets": {}, "inductors": {},
                                              "capacitors": {}})())

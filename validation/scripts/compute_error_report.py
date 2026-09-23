@@ -111,6 +111,7 @@ def process_evm(evm_id: str) -> dict:
         "mean_under": (sum(p["err"] for p in under) / len(under)) if under else None,
         "skipped_nan": skipped_nan,
         "thermal_in_scope": tc.get("thermal_in_scope", False),
+        "injection_caveat": tc.get("injection_caveat"),
         "topology": tc.get("topology", "buck"),
         "sourcing": _sourcing_breakdown(d), "sens": sens, "png": png,
         "n_failed_runs": sum(1 for r in _load_csv(d / "sim_results.csv")
@@ -127,6 +128,8 @@ def main() -> None:
                      if p.is_dir() and (p / "sim_results.csv").exists()
                      and not p.name.startswith("."))
     results = [process_evm(e) for e in evm_ids]
+    validated_topologies = {r["topology"] for r in results}
+    missing = [t for t in ("buck", "boost", "buck_boost") if t not in validated_topologies]
 
     # ---------- summary across topologies ----------
     lines = [
@@ -148,6 +151,10 @@ def main() -> None:
         "point (pp) | Bias direction | Thermal in scope? |",
         "|---|---|---|---|---|---|---|",
     ]
+    for topo in missing:
+        lines.append(
+            f"| {topo} | not found yet | — | — | — | "
+            "no (conditions unstated on candidates found) |")
     for r in results:
         bias = ("optimistic (over-predicts efficiency)"
                 if (r["n_over"] > r["n_under"])
@@ -156,7 +163,7 @@ def main() -> None:
         lines.append(
             f"| {r['topology']} | {r['evm_id']} | {len(r['pairs'])} | "
             f"{r['mae_pp']:.2f} | {r['worst']['err']:+.2f} @ "
-            f"{r['worst']['load']:.0f} A | {bias} | "
+            f"{r['worst']['load']:g} A | {bias} | "
             f"{'yes' if r['thermal_in_scope'] else 'no (conditions unstated)'} |")
 
     # ---------- per-EVM sections ----------
@@ -174,12 +181,12 @@ def main() -> None:
             flag = "  (exceeds 2x digitization uncertainty)" \
                 if abs(p["err"]) > 2 * p["unc"] else ""
             lines.append(
-                f"| {p['load']:.0f} | {p['meas']:.2f} | {p['sim']:.2f} | "
+                f"| {p['load']:g} | {p['meas']:.2f} | {p['sim']:.2f} | "
                 f"{p['err']:+.2f} | +/-{p['unc']:.1f} | {p['ripple_mv']} |{flag}")
         lines += [
             "",
             f"Mean absolute error: {r['mae_pp']:.2f} pp. Worst point: "
-            f"{r['worst']['load']:.0f} A at {r['worst']['err']:+.2f} pp.",
+            f"{r['worst']['load']:g} A at {r['worst']['err']:+.2f} pp.",
             "",
             f"Over-predictions (optimistic, DANGEROUS direction): "
             f"{r['n_over']} of {len(r['pairs'])} points, mean "
@@ -200,6 +207,8 @@ def main() -> None:
         if r["n_failed_runs"]:
             lines.append(f"Failed runs: {r['n_failed_runs']} "
                          "(recorded in sim_results.csv notes).")
+        if r.get("injection_caveat"):
+            lines += ["", f"Topology-match caveat: {r['injection_caveat']}"]
         if not r["thermal_in_scope"]:
             lines.append("Thermal validation: OUT OF SCOPE — ambient/airflow "
                          "are not stated in the source user's guide; no "
@@ -280,7 +289,7 @@ def main() -> None:
     for r in results:
         print(f"  {r['evm_id']} [{r['topology']}]: MAE {r['mae_pp']:.2f} pp, "
               f"{len(r['pairs'])} points, worst {r['worst']['err']:+.2f} @ "
-              f"{r['worst']['load']:.0f} A")
+              f"{r['worst']['load']:g} A")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,34 @@
+evm_id: lm5175evm_hd
+controller: LM5175
+topology: buck_boost   # 4-switch non-inverting (exact pipeline match)
+vin_v: 12.0
+vout_v: 12.0
+iout_max_a: 6.0
+fsw_hz: 400000
+ambient_c: null
+airflow: unknown
+notes: >
+  SNVU439 (LM5175EVM-HD). Efficiency vs Output Current (Figure 5) shows
+  VIN = 6/12/18/24/42 V curves, VOUT = 12 V, 0-6 A. Validation target: the
+  VIN = 12 V curve (the transition point where all four switches conduct
+  equally, minimizing the single-MOSFET injection caveat below).
+unmatched_factors:
+  - single_mosfet_injection   # rig uses BSZ042N06NS for all 4 switches; EVM uses
+                              # BSZ042N06NS (QH1/QL1) + BSZ0902NS (QH2/QL2) - at the
+                              # VIN=12V transition the substituted 60V/4.2mOhm part
+                              # carries current the EVM assigns to a 30V/2.6mOhm
+                              # part on one leg -> sim loss slightly HIGHER there
+                              # (conservative direction)
+  - gate_drive_behavioral_5v
+  - qgd_estimated                # BSZ042N06NS Qgd unpublished; 7 nC class estimate, sensitivity noted in error_report
+  - no_input_rail_loss
+injection_caveat: >
+  The pipeline drives all four switches with ONE MOSFET part (BSZ042N06NS,
+  60 V / 4.2 mOhm); the EVM uses BSZ042N06NS on the QH1/QL1 pair and
+  BSZ0902NS (30 V / 2.6 mOhm) on the QH2/QL2 pair. At the VIN = 12 V
+  validation point both legs block ~12 V and conduct roughly equally, so
+  the substitution raises modeled conduction loss on the QH2/QL2 leg by
+  ~62 pct (4.2 vs 2.6 mOhm) - the conservative direction, consistent with
+  the uniform under-prediction in the table. Qgd for BSZ042N06NS is a
+  pipeline estimate (7 nC) and directly scales the modeled crossover term.
+thermal_in_scope: false
