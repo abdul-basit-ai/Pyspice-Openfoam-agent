@@ -81,6 +81,9 @@ Pyspice-Openfoam-agent/
 │   ├── topology_smoke.py             # end-to-end acceptance smoke (one spec per topology)
 │   └── dtest.sh                      # in-container pytest runner
 │
+├── report/
+│   └── dc_dc_agent_report.tex        # IEEE-format project report (architecture, audit, EVM validation)
+│
 └── ui/app.py                         # Streamlit front end (scripted + OpenRouter modes)
 ```
 

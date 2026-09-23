@@ -139,7 +139,7 @@ bash scripts/dtest.sh                        # full suite in-container
 - `src/pyspice_openfoam_agent/thermal/` — JEDEC board model, OpenFOAM case generation, CHT solver, validation, mitigation, electro-thermal loop
 - `src/pyspice_openfoam_agent/optimization/` — NSGA-II Pareto (two-tier fidelity)
 - `src/pyspice_openfoam_agent/orchestrator/` — LangGraph agent, tool layer, design memory, bounded process parallelism
-- `ui/` — Streamlit app; `scripts/` — smoke + dev scripts; `docs/` — diagram source
+- `ui/` — Streamlit app; `scripts/` — smoke + dev scripts; `report/` — IEEE-format project report (LaTeX); `docs/` — diagram source
 
 ## Documentation
 
@@ -147,6 +147,7 @@ bash scripts/dtest.sh                        # full suite in-container
 - [`updated_project_goals.md`](updated_project_goals.md) — the phase plan (0–23) with implementation status notes
 - [`AUDIT.md`](AUDIT.md) — the full audit: every finding → fix → verification
 - [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) — directory → phase map
+- [`report/dc_dc_agent_report.tex`](report/dc_dc_agent_report.tex) — 4–6 page IEEE-format report of the whole project (architecture, engineering decisions, audit, EVM validation); compile with pdflatex or import into Overleaf (packages: amsmath, graphicx, booktabs, tikz, pgfplots, siunitx, multirow, hyperref — all in TeX Live default)
 
 ## Environment notes
 
