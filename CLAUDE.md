@@ -6,11 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 An AI-assisted DC-DC power-converter design platform: parse a spec → synthesize topology → select real components → SPICE simulation (PySpice/ngspice) → loss extraction → OpenFOAM conjugate-heat-transfer solve → electro-thermal convergence → NSGA-II Pareto optimization → Streamlit UI, orchestrated by a LangGraph ReAct agent powered by OpenRouter (DeepSeek). Free tools only; deterministic physics everywhere, LLM strictly for reasoning/orchestration.
 
-Two planning docs exist with **different phase numbering**:
-- `dc-dc-synthesizer-phase-plan.md` — original build plan (Phases 0–14). The rationale for every design choice (why chtMultiRegionSimpleFoam, why static part library, etc.) lives here.
-- `updated_project_goals.md` — the expanded goals renumbering (Phases 0–23) that the code actually implements. Its "Implementation Status" section (at the bottom of the phase-plan doc) tracks what is built.
-
-`PROJECT_STRUCTURE.md` maps directories to phases (kept in sync; trust the code first).
+The phase plan the code implements lives in `updated_project_goals.md`
+(Phases 0–23, with an Implementation Status section at the bottom).
+`PROJECT_STRUCTURE.md` maps directories to phases (kept in sync; trust the
+code first).
 
 ## Commands
 
@@ -30,7 +29,9 @@ streamlit run ui/app.py              # UI (inside the container)
 
 **Canonical environment is the Docker container** (`docker/Dockerfile`: Ubuntu 22.04, OpenFOAM v2406 openfoam.com line — entrypoint sources its bashrc, ngspice + libngspice symlink, pinned PySpice 1.5 / numpy <2.0). On the Windows host (ngspice installed per README + PySpice DLL layout), everything except the real-CHT `test_solver.py` tests runs natively; those skip unless `chtMultiRegionSimpleFoam` is on PATH (in-container, or source OpenFOAM's bashrc first on Linux).
 
-Expected baseline after the 2026-09 hardening pass (see remain_plan.md DONE log): **210 passed / 6 env-gated skips on the Windows host**; **216/216 in-container** (the 6 host skips are the real-CHT tests, all passing in the container). `scripts/topology_smoke.py` must report ALL PASSED for buck/boost/buck_boost.
+Expected baseline after the 2026-09 hardening pass: **210 passed / 6
+env-gated skips on the Windows host**; **216/216 in-container** (the 6 host
+skips are the real-CHT tests, all passing in the container). `scripts/topology_smoke.py` must report ALL PASSED for buck/boost/buck_boost.
 
 LLM access: copy `.env.example` → `.env` and set `OPENROUTER_API_KEY` (`OPENROUTER_MODEL` defaults to `deepseek/deepseek-v4-flash-0731`). Tests use recorded mock LLM responses — the suite never calls the API.
 

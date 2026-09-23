@@ -50,6 +50,34 @@ failed check.
 | `boost`      | synchronous boost (2 switches)             |
 | `buck_boost` | 4-switch non-inverting buck-boost, +\|Vout\| |
 
+## Validation status (physics engine vs TI EVM measurements)
+
+The physics engine is validated against real published EVM measurements
+(`validation/error_report.md` — full tables, per-field data sourcing, and
+reproduction steps):
+
+- **buck — validated**: LM27402 EVM, MAE **0.22 pp** over 17 matched loads
+  (worst +0.81 pp; bias slightly optimistic, the dangerous direction).
+- **buck-boost — validated with a documented limitation**: LM5175EVM-HD,
+  MAE **2.47 pp** over 10 matched loads, uniformly conservative. The
+  residual is **not explained** (the real board's 12 V transition point is
+  ~98.3% efficient and the modeled gate/crossover terms overshoot loss
+  there); it is recorded as an open question with unconfirmed candidate
+  causes, not a bounded caveat.
+- **boost — NOT validated**: after a genuine TI/ADI/onsemi search, no
+  qualifying single-phase discrete-FET synchronous-boost EVM exists with
+  schematic + BOM + a digitizable efficiency curve + stated conditions.
+  This is an explicit negative result, not a silently-open gap.
+
+Scope: component selection is out of scope (parts injected, not chosen);
+one EVM per topology; one operating point / sweep per EVM; **no thermal
+validation** on any EVM (ambient/airflow are not stated in the source
+docs, so no temperature comparison is claimed).
+
+Future work: a boost EVM if a qualifying one becomes available; closed-loop
+SPICE validation (tracked separately in the phase plan); the buck-boost
+residual investigation, if picked up later.
+
 ## Quickstart
 
 ```bash
@@ -118,7 +146,6 @@ bash scripts/dtest.sh                        # full suite in-container
 - [`CLAUDE.md`](CLAUDE.md) — agent-facing guide: architecture, contracts, engineering policies
 - [`updated_project_goals.md`](updated_project_goals.md) — the phase plan (0–23) with implementation status notes
 - [`AUDIT.md`](AUDIT.md) — the full audit: every finding → fix → verification
-- [`remain_plan.md`](remain_plan.md) — phase completion status and remaining work
 - [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) — directory → phase map
 
 ## Environment notes

@@ -1,6 +1,6 @@
 # Validation error report
 
-Generated: 2026-09-23 19:24 UTC. Reproduce every number via `validation/README.md`.
+Generated: 2026-09-23 20:02 UTC. Reproduce every number via `validation/README.md`.
 
 Scope: physics-engine validation with EVM-exact injected parts (component selection is out of scope per the validation plan). Error convention: error = simulated minus measured efficiency, in percentage points (pp). Positive error means the simulator claims BETTER efficiency than the real board delivers -- the optimistic, dangerous direction. Negative error is conservative.
 
@@ -82,6 +82,9 @@ Field sourcing behind these numbers: 19 published / 2 derived / 7 pipeline_estim
 
 Superseded result (kept for transparency): The first published buck-boost number (MAE 2.66 pp, worst -3.22 pp @ 6 A) used a SINGLE MOSFET part (BSZ042N06NS, 4.2 mOhm) on all four switches, which over-modeled conduction on the QH2/QL2 leg the EVM implements with BSZ0902NS (2.6 mOhm) - a uniformly conservative bias. That result is superseded by the per-switch injection above; both numbers are kept for transparency.
 
+Open questions (UNRESOLVED - future work):
+- UNEXPLAINED RESIDUAL: the per-switch-part fix (BSZ042N06NS on leg 1, BSZ0902NS on leg 2) reduced MAE only marginally (2.66 -> 2.47 pp), not to the ~1 pp predicted from the leg-2 conduction analysis. The real board's 12 V transition point is unusually efficient (~98.3 pct) and the modeled gate/crossover terms plus conservative mask assumptions still overshoot loss there for reasons not yet isolated. Unconfirmed candidate explanations, NOT verified: the behavioral 5 V gate-drive model (no driver IC behavior), omitted Qrr on the LS parts, and crossover-loss model assumptions (TI-Lakkas first-order with clamps) not suited to this switching regime. Treated as a known limitation and open question for future work - the 2.47 pp number is NOT understood or bounded.
+
 Topology-match caveat: Per-switch injection (post engine upgrade): leg 1 (QH1/QL1) carries BSZ042N06NS and leg 2 (QH2/QL2) carries BSZ0902NS, exactly as the EVM BOM. BSZ0902NS Qgd and Vplateau are schema-required estimates (unused by the loss model for the sync role); its Coss/Qrr are unpublished and omitted. This supersedes the earlier single-part-injection result (MAE 2.66 pp), which modeled 4.2 mOhm on all four switches and under-predicted efficiency by construction on the 2.6 mOhm leg.
 
 Thermal validation: OUT OF SCOPE -- ambient/airflow are not stated in the source user's guide; no temperature is compared.
@@ -111,4 +114,5 @@ Overlay: ![overlay](evms/lm5175evm_hd/overlay_lm5175evm_hd.png)
 - Digitization uncertainty (+/-0.3 pp) is a floor under every error claim; points exceeding 2x that are flagged in the tables.
 - Buck-boost topology match: see the per-EVM section for any caveat where the EVM's switch configuration differs from the pipeline's 4-switch non-inverting model.
 - The pipeline is deterministic at fixed load; single runs per point (no run-to-run variance term is needed).
+- Buck-boost residual is an OPEN QUESTION: the per-switch fix recovered only 2.66 -> 2.47 pp of the ~2.7 pp under-prediction at the 12 V transition point; the remaining gap is unexplained (candidate causes listed in the buck-boost section) and the 2.47 pp number is not understood or bounded.
 

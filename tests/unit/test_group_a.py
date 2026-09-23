@@ -1,4 +1,4 @@
-"""Group A additions (remain_plan.md): Phase 1 IC data + Phase 5 IC selection,
+"""Group A additions: Phase 1 IC data + Phase 5 IC selection,
 Phase 6/8 step tests, Phase 8 sweeps, Phase 9 cap-ESR loss, Phase 14 Pareto
 tool. Pure-logic tests here; the real-ngspice end-to-end is gated like
 test_spice.py.

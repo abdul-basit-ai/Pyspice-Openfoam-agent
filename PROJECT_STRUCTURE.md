@@ -1,11 +1,11 @@
 # Project layout — Pyspice-Openfoam-agent
 
-Maps each directory to its phase(s) in dc-dc-synthesizer-phase-plan.md.
+Maps each directory to its phase(s) in updated_project_goals.md.
 (Refreshed after the 2026-09 audit; trust the code first, this is the map.)
 
 ```
 Pyspice-Openfoam-agent/
-├── dc-dc-synthesizer-phase-plan.md   # build plan (Phases 0-14 + 11a/11b/11c)
+├── updated_project_goals.md          # phase plan (Phases 0-23, implementation status)
 ├── README.md                         # quickstart + environment setup
 ├── AUDIT.md                          # 2026-09 full audit: findings -> fixes -> verification
 ├── CLAUDE.md                         # agent-facing guide

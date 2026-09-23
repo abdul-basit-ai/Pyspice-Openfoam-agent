@@ -1,4 +1,4 @@
-"""Steps 7 + 8 (revised per mulyivalidation.md): error report across ALL
+"""Validation error-report steps: error report across ALL
 validated EVMs.
 
 Error convention (fixed per Part A review):
@@ -113,6 +113,7 @@ def process_evm(evm_id: str) -> dict:
         "thermal_in_scope": tc.get("thermal_in_scope", False),
         "injection_caveat": tc.get("injection_caveat"),
         "superseded": tc.get("superseded_result"),
+        "open_questions": tc.get("open_questions") or [],
         "topology": tc.get("topology", "buck"),
         "sourcing": _sourcing_breakdown(d), "sens": sens, "png": png,
         "n_failed_runs": sum(1 for r in _load_csv(d / "sim_results.csv")
@@ -213,6 +214,10 @@ def main() -> None:
         if r.get("superseded"):
             lines += ["", "Superseded result (kept for transparency): "
                       + " ".join(r["superseded"].split())]
+        if r.get("open_questions"):
+            lines += ["", "Open questions (UNRESOLVED - future work):"]
+            for q in r["open_questions"]:
+                lines.append("- " + " ".join(q.split()))
         if r.get("injection_caveat"):
             lines += ["", f"Topology-match caveat: {r['injection_caveat']}"]
         if not r["thermal_in_scope"]:
@@ -289,6 +294,11 @@ def main() -> None:
         "pipeline's 4-switch non-inverting model.",
         "- The pipeline is deterministic at fixed load; single runs per "
         "point (no run-to-run variance term is needed).",
+        "- Buck-boost residual is an OPEN QUESTION: the per-switch fix "
+        "recovered only 2.66 -> 2.47 pp of the ~2.7 pp under-prediction at "
+        "the 12 V transition point; the remaining gap is unexplained "
+        "(candidate causes listed in the buck-boost section) and the 2.47 pp "
+        "number is not understood or bounded.",
         "",
     ]
 

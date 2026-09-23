@@ -24,6 +24,20 @@ injection_caveat: >
   This supersedes the earlier single-part-injection result (MAE 2.66 pp),
   which modeled 4.2 mOhm on all four switches and under-predicted efficiency
   by construction on the 2.6 mOhm leg.
+open_questions:
+  - >
+    UNEXPLAINED RESIDUAL: the per-switch-part fix (BSZ042N06NS on leg 1,
+    BSZ0902NS on leg 2) reduced MAE only marginally (2.66 -> 2.47 pp), not
+    to the ~1 pp predicted from the leg-2 conduction analysis. The real
+    board's 12 V transition point is unusually efficient (~98.3 pct) and
+    the modeled gate/crossover terms plus conservative mask assumptions
+    still overshoot loss there for reasons not yet isolated. Unconfirmed
+    candidate explanations, NOT verified: the behavioral 5 V gate-drive
+    model (no driver IC behavior), omitted Qrr on the LS parts, and
+    crossover-loss model assumptions (TI-Lakkas first-order with clamps)
+    not suited to this switching regime. Treated as a known limitation and
+    open question for future work - the 2.47 pp number is NOT understood
+    or bounded.
 superseded_result: >
   The first published buck-boost number (MAE 2.66 pp, worst -3.22 pp @ 6 A)
   used a SINGLE MOSFET part (BSZ042N06NS, 4.2 mOhm) on all four switches,
